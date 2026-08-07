@@ -51,10 +51,18 @@ class TelegramQueueManager(
         return@withContext successCount
     }
 
-    suspend fun testConnection(token: String, chatId: String): Result<String> = withContext(Dispatchers.IO) {
+    suspend fun testConnection(rawToken: String, rawChatId: String): Result<String> = withContext(Dispatchers.IO) {
         return@withContext try {
+            val token = sanitizeBotToken(rawToken)
+            val chatId = sanitizeChatId(rawChatId)
+
+            if (token.isBlank() || chatId.isBlank()) {
+                return@withContext Result.failure(Exception("텔레그램 토큰 또는 Chat ID가 비어있습니다."))
+            }
+
+            val url = "https://api.telegram.org/bot$token/sendMessage"
             val testMsg = "<b>[SoundLog]</b> 텔레그램 연동 테스트 메시지입니다. ✅\n시간: ${formatTimestamp(System.currentTimeMillis())}"
-            val response = api.sendMessage(token, chatId, testMsg)
+            val response = api.sendMessage(url, chatId, testMsg)
             if (response.isSuccessful && response.body()?.ok == true) {
                 Result.success("텔레그램 전송 성공! (Msg ID: ${response.body()?.result?.messageId})")
             } else {
@@ -62,13 +70,16 @@ class TelegramQueueManager(
                 Result.failure(Exception("텔레그램 API 오류: $errorMsg"))
             }
         } catch (e: Exception) {
-            Result.failure(e)
+            Result.failure(Exception("텔레그램 전송 실패: ${e.localizedMessage}"))
         }
     }
 
     private suspend fun sendSingleSong(song: SongResultEntity): Boolean {
-        val token = settingsRepository.telegramBotToken
-        val chatId = settingsRepository.telegramChatId
+        val rawToken = settingsRepository.telegramBotToken
+        val rawChatId = settingsRepository.telegramChatId
+
+        val token = sanitizeBotToken(rawToken)
+        val chatId = sanitizeChatId(rawChatId)
 
         if (token.isBlank() || chatId.isBlank()) {
             Log.w(TAG, "Telegram Token or ChatID is not configured.")
@@ -92,9 +103,10 @@ class TelegramQueueManager(
         }
 
         val messageText = formatSongMessage(song)
+        val url = "https://api.telegram.org/bot$token/sendMessage"
 
         return try {
-            val response = api.sendMessage(token, chatId, messageText)
+            val response = api.sendMessage(url, chatId, messageText)
             if (response.isSuccessful && response.body()?.ok == true) {
                 val msgId = response.body()?.result?.messageId
                 songResultDao.update(
@@ -127,6 +139,26 @@ class TelegramQueueManager(
             )
             false
         }
+    }
+
+    private fun sanitizeBotToken(rawToken: String): String {
+        var cleaned = rawToken.trim()
+        if (cleaned.contains("bot")) {
+            val botIndex = cleaned.indexOf("bot")
+            cleaned = cleaned.substring(botIndex + 3)
+        }
+        if (cleaned.contains("/")) {
+            cleaned = cleaned.substring(0, cleaned.indexOf("/"))
+        }
+        return cleaned.trim()
+    }
+
+    private fun sanitizeChatId(rawChatId: String): String {
+        var cleaned = rawChatId.trim()
+        if (cleaned.startsWith("https://t.me/")) {
+            cleaned = "@" + cleaned.removePrefix("https://t.me/")
+        }
+        return cleaned
     }
 
     private fun formatSongMessage(song: SongResultEntity): String {

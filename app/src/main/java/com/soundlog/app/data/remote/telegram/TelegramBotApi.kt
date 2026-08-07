@@ -5,14 +5,14 @@ import retrofit2.Response
 import retrofit2.http.Field
 import retrofit2.http.FormUrlEncoded
 import retrofit2.http.POST
-import retrofit2.http.Path
+import retrofit2.http.Url
 
 interface TelegramBotApi {
 
     @FormUrlEncoded
-    @POST("bot{token}/sendMessage")
+    @POST
     suspend fun sendMessage(
-        @Path("token") token: String,
+        @Url url: String,
         @Field("chat_id") chatId: String,
         @Field("text") text: String,
         @Field("parse_mode") parseMode: String? = "HTML"

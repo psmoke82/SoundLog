@@ -8,6 +8,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.PowerManager
 import android.provider.Settings
+import android.text.TextUtils
 import com.soundlog.app.service.ShazamAccessibilityService
 
 object AppChecklistHelper {
@@ -32,15 +33,15 @@ object AppChecklistHelper {
             ChecklistItem(
                 id = "shazam_install",
                 title = "Shazam 앱 설치 여부",
-                description = if (isShazamInstalled) "Shazam 앱이 설치되어 있습니다." else "음악 식별을 위해 Shazam 공식 앱 설치가 필요합니다.",
+                description = if (isShazamInstalled) "Shazam 공식 앱이 정상 설치되어 있습니다." else "음악 식별을 위해 Shazam 공식 앱 설치가 필요합니다.",
                 isPassed = isShazamInstalled,
                 actionText = "플레이스토어 이동",
                 onAction = { ctx -> openPlayStore(ctx, SHAZAM_PACKAGE_NAME) }
             )
         )
 
-        // 2. 접근성 권한 체크
-        val isAccessibilityEnabled = ShazamAccessibilityService.isServiceRunning()
+        // 2. 접근성 권한 체크 (시스템 설정 + 서비스 인스턴스 이중 검사)
+        val isAccessibilityEnabled = isAccessibilityServiceEnabled(context)
         list.add(
             ChecklistItem(
                 id = "accessibility_perm",
@@ -107,10 +108,59 @@ object AppChecklistHelper {
     }
 
     private fun isAppInstalled(context: Context, packageName: String): Boolean {
+        val pm = context.packageManager
         return try {
-            context.packageManager.getPackageInfo(packageName, 0)
+            pm.getPackageInfo(packageName, 0)
             true
-        } catch (e: PackageManager.NameNotFoundException) {
+        } catch (e1: Exception) {
+            try {
+                pm.getApplicationInfo(packageName, 0)
+                true
+            } catch (e2: Exception) {
+                try {
+                    pm.getLaunchIntentForPackage(packageName) != null
+                } catch (e3: Exception) {
+                    false
+                }
+            }
+        }
+    }
+
+    private fun isAccessibilityServiceEnabled(context: Context): Boolean {
+        // 1. 이미 실행 중인 서비스 인스턴스 확인
+        if (ShazamAccessibilityService.isServiceRunning()) return true
+
+        // 2. 안드로이드 시스템 Secure Settings 시스템 검사
+        return try {
+            val expectedServiceSimple = "${context.packageName}/${ShazamAccessibilityService::class.java.canonicalName}"
+            val expectedServiceFlatten = "${context.packageName}/${ShazamAccessibilityService::class.java.name}"
+
+            val enabledServices = Settings.Secure.getString(
+                context.contentResolver,
+                Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+            ) ?: ""
+
+            val accessibilityEnabled = Settings.Secure.getInt(
+                context.contentResolver,
+                Settings.Secure.ACCESSIBILITY_ENABLED
+            ) == 1
+
+            if (!accessibilityEnabled && enabledServices.isEmpty()) return false
+
+            val colonSplitter = TextUtils.SimpleStringSplitter(':')
+            colonSplitter.setString(enabledServices)
+
+            while (colonSplitter.hasNext()) {
+                val componentName = colonSplitter.next()
+                if (componentName.equals(expectedServiceSimple, ignoreCase = true) ||
+                    componentName.equals(expectedServiceFlatten, ignoreCase = true) ||
+                    componentName.contains("ShazamAccessibilityService")
+                ) {
+                    return true
+                }
+            }
+            false
+        } catch (e: Exception) {
             false
         }
     }
