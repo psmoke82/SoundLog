@@ -29,11 +29,20 @@ class ShazamAccessibilityService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (!isMonitoringActive || event == null) return
 
+        // Shazam 앱의 이벤트만 처리 (다른 앱 텍스트 오추출 방지)
+        val eventPackage = event.packageName?.toString()
+        if (eventPackage != AppChecklistHelper.SHAZAM_PACKAGE_NAME) return
+
         val eventType = event.eventType
         if (eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
             eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
         ) {
             val rootNode = rootInActiveWindow ?: return
+            // rootInActiveWindow가 Shazam 앱인지 이중 확인
+            if (rootNode.packageName?.toString() != AppChecklistHelper.SHAZAM_PACKAGE_NAME) {
+                Log.d(TAG, "Skipping non-Shazam root window: ${rootNode.packageName}")
+                return
+            }
             val result = ShazamNodeFinder.extractRecognitionResult(rootNode)
             if (result.success || result.isNoMatch) {
                 Log.i(TAG, "Result captured via AccessibilityEvent! Result: $result")
@@ -49,10 +58,18 @@ class ShazamAccessibilityService : AccessibilityService() {
 
     fun minimizeShazamApp() {
         try {
-            val success = performGlobalAction(GLOBAL_ACTION_HOME)
-            Log.i(TAG, "Minimizing Shazam app (GLOBAL_ACTION_HOME) -> Success: $success")
+            val intent = packageManager.getLaunchIntentForPackage(packageName)?.apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
+            }
+            if (intent != null) {
+                startActivity(intent)
+                Log.i(TAG, "Returning to SoundLog app after Shazam recognition")
+            } else {
+                performGlobalAction(GLOBAL_ACTION_HOME)
+                Log.w(TAG, "Could not find SoundLog launch intent, falling back to HOME")
+            }
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to minimize Shazam app", e)
+            Log.e(TAG, "Failed to return to SoundLog app", e)
         }
     }
 
@@ -125,6 +142,15 @@ class ShazamAccessibilityService : AccessibilityService() {
             withTimeoutOrNull(maxTimeoutMs) {
                 while (isMonitoringActive && System.currentTimeMillis() - startTime < maxTimeoutMs) {
                     val currentRoot = rootInActiveWindow
+
+                    // Shazam 앱이 포그라운드에 있을 때만 텍스트 추출 (다른 앱 오추출 방지)
+                    val currentPackage = currentRoot?.packageName?.toString()
+                    if (currentPackage != AppChecklistHelper.SHAZAM_PACKAGE_NAME) {
+                        Log.d(TAG, "Polling: foreground is '$currentPackage', waiting for Shazam...")
+                        delay(500)
+                        continue
+                    }
+
                     val result = ShazamNodeFinder.extractRecognitionResult(currentRoot)
 
                     if (result.success || result.isNoMatch) {

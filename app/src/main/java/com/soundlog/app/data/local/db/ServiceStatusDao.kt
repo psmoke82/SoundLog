@@ -31,6 +31,9 @@ interface ExecutionLogDao {
     @Query("DELETE FROM execution_logs WHERE id NOT IN (SELECT id FROM execution_logs ORDER BY timestamp DESC LIMIT :maxCount)")
     suspend fun pruneOldLogs(maxCount: Int = 1000)
 
+    @Query("DELETE FROM execution_logs WHERE id = :id")
+    suspend fun deleteById(id: Long)
+
     @Query("DELETE FROM execution_logs")
     suspend fun clearLogs()
 }

@@ -1,15 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+
+    <!-- 배경: 딥 인디고-다크 네이비 그라디언트 느낌 (단색 근사) -->
     <path
-        android:fillColor="#0F172A"
+        android:fillColor="#1A0A3E"
         android:pathData="M0,0h108v108h-108z" />
+
+    <!-- 바깥 파동 링 (가장 연한 네온) -->
     <path
-        android:fillColor="#38BDF8"
-        android:pathData="M54,18 C34.12,18 18,34.12 18,54 C18,73.88 34.12,90 54,90 C73.88,90 90,73.88 90,54 C90,34.12 73.88,18 54,18 Z M54,82 C38.54,82 26,69.46 26,54 C26,38.54 38.54,26 54,26 C69.46,26 82,38.54 82,54 C82,69.46 69.46,82 54,82 Z" />
+        android:fillColor="#0000"
+        android:strokeColor="#2AFFA060"
+        android:strokeWidth="2"
+        android:pathData="M54,10 C30.8,10 12,28.8 12,52 C12,75.2 30.8,94 54,94 C77.2,94 96,75.2 96,52 C96,28.8 77.2,10 54,10 Z" />
+
+    <!-- 중간 파동 링 -->
     <path
-        android:fillColor="#818CF8"
-        android:pathData="M48,36 L66,36 L66,60 C63.8,58.8 61,58.2 58,58.8 C52.5,59.9 48.5,64.9 49.1,70.5 C49.8,76.5 55.4,80.8 61.4,79.9 C66.8,79.1 70.8,74.2 70.8,68.7 L70.8,44 L48,44 Z" />
+        android:fillColor="#0000"
+        android:strokeColor="#50FFB878"
+        android:strokeWidth="2"
+        android:pathData="M54,20 C36.3,20 22,34.3 22,52 C22,69.7 36.3,84 54,84 C71.7,84 86,69.7 86,52 C86,34.3 71.7,20 54,20 Z" />
+
+    <!-- 안쪽 파동 링 (더 밝은 네온) -->
+    <path
+        android:fillColor="#0000"
+        android:strokeColor="#90FFD070"
+        android:strokeWidth="2.5"
+        android:pathData="M54,30 C41.9,30 32,39.9 32,52 C32,64.1 41.9,74 54,74 C66.1,74 76,64.1 76,52 C76,39.9 66.1,30 54,30 Z" />
+
+    <!-- 음표 몸통 (세로 기둥) -->
+    <path
+        android:fillColor="#39FF85"
+        android:pathData="M57,32 L62,32 L62,58 L57,58 Z" />
+
+    <!-- 음표 머리 (타원) - 오른쪽 아래 -->
+    <path
+        android:fillColor="#39FF85"
+        android:pathData="M56,55 C56,52.2 58.7,50 62,50 C65.3,50 68,52.2 68,55 C68,57.8 65.3,60 62,60 C58.7,60 56,57.8 56,55 Z" />
+
+    <!-- 음표 플래그 (오른쪽 기둥에서 곡선) -->
+    <path
+        android:fillColor="#00CFFF"
+        android:strokeColor="#00CFFF"
+        android:strokeWidth="1.5"
+        android:pathData="M62,32 C62,32 70,36 68,44" />
+
+    <!-- 작은 점 (중앙 아래 - 인식 포인트 느낌) -->
+    <path
+        android:fillColor="#00CFFF"
+        android:pathData="M51,70 C51,68.3 52.3,67 54,67 C55.7,67 57,68.3 57,70 C57,71.7 55.7,73 54,73 C52.3,73 51,71.7 51,70 Z" />
+
 </vector>
