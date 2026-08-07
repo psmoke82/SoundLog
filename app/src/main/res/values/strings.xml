@@ -1,0 +1,6 @@
+<resources>
+    <string name="app_name">SoundLog</string>
+    <string name="accessibility_service_label">SoundLog Shazam Automation Service</string>
+    <string name="accessibility_service_description">Shazam 앱 UI를 자동화하여 음악을 식별하고 텔레그램으로 자동 전송하는 접근성 서비스입니다.</string>
+    <string name="foreground_service_channel">SoundLog Background Service</string>
+</resources>
