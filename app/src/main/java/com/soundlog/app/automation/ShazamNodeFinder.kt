@@ -104,7 +104,7 @@ object ShazamNodeFinder {
     }
 
     /**
-     * Shazam 화면에서 곡명과 아티스트 텍스트를 파싱합니다.
+     * Shazam 화면에서 곡명과 아티스트 텍스트를 파싱합니다. (날짜/시간 텍스트 제외 처리 적용)
      */
     fun extractRecognitionResult(rootNode: AccessibilityNodeInfo?): RecognitionResult {
         if (rootNode == null) return RecognitionResult(false, errorMessage = "Root node is null")
@@ -114,14 +114,14 @@ object ShazamNodeFinder {
             return RecognitionResult(false, isNoMatch = true, errorMessage = "음악을 인식하지 못함 (No Match)")
         }
 
-        // 2. ID 목록 기반 추출
+        // 2. ID 목록 기반 정밀 추출
         var title: String? = null
         var artist: String? = null
 
         for (id in TITLE_IDS) {
             val nodes = rootNode.findAccessibilityNodeInfosByViewId(id)
             val t = nodes?.firstOrNull()?.text?.toString()?.trim()
-            if (!t.isNullOrBlank() && !isIgnoredText(t)) {
+            if (!t.isNullOrBlank() && !isDateTimeOrIgnoredText(t)) {
                 title = t
                 break
             }
@@ -130,7 +130,7 @@ object ShazamNodeFinder {
         for (id in ARTIST_IDS) {
             val nodes = rootNode.findAccessibilityNodeInfosByViewId(id)
             val a = nodes?.firstOrNull()?.text?.toString()?.trim()
-            if (!a.isNullOrBlank() && !isIgnoredText(a)) {
+            if (!a.isNullOrBlank() && !isDateTimeOrIgnoredText(a)) {
                 artist = a
                 break
             }
@@ -141,13 +141,13 @@ object ShazamNodeFinder {
             return RecognitionResult(true, artist = artist, title = title)
         }
 
-        // 3. Fallback: 노드 트리를 탐색하여 유효한 텍스트 파싱
+        // 3. Fallback: 노드 트리를 탐색하여 날짜/시간이 아닌 순수 곡명 & 아티스트 텍스트 파싱
         val allTextNodes = mutableListOf<String>()
         collectCleanTextStrings(rootNode, allTextNodes)
 
-        // 텍스트 필터링
+        // 날짜/시간 및 UI 시스템 문자열 필터링
         val validTexts = allTextNodes.filter { text ->
-            !isIgnoredText(text) && text.length >= 2
+            !isDateTimeOrIgnoredText(text)
         }.distinct()
 
         if (validTexts.size >= 2) {
@@ -162,7 +162,7 @@ object ShazamNodeFinder {
             }
         }
 
-        return RecognitionResult(false, errorMessage = "곡 정보 노드를 탐색하지 못함 (Valid texts count: ${validTexts.size})")
+        return RecognitionResult(false, errorMessage = "유효한 곡 정보 노드를 탐색하지 못함 (Valid texts: $validTexts)")
     }
 
     private fun isNoMatchScreen(rootNode: AccessibilityNodeInfo): Boolean {
@@ -173,15 +173,45 @@ object ShazamNodeFinder {
         return findNodesByTextKeywords(rootNode, keywords).isNotEmpty()
     }
 
-    private fun isIgnoredText(text: String): Boolean {
-        val lower = text.lowercase()
+    private fun isDateTimeOrIgnoredText(text: String): Boolean {
+        val trimmed = text.trim()
+        if (trimmed.length < 2) return true
+
+        val lower = trimmed.lowercase()
+
+        // 1. UI 시스템 기본 키워드 필터링
         val ignoredKeywords = listOf(
             "shazam", "search", "library", "charts", "settings",
             "open in", "play full song", "connect", "spotify", "apple music",
             "youtube", "lyrics", "share", "video", "track", "listen", "tap to",
-            "listening", "shazaming", "찾는 중", "듣는 중"
+            "listening", "shazaming", "찾는 중", "듣는 중", "다시 시도", "결과 없음",
+            "my library", "recent shazams", "top tracks"
         )
-        return ignoredKeywords.any { lower.contains(it) } || text.length < 2
+        if (ignoredKeywords.any { lower.contains(it) }) return true
+
+        // 2. 날짜 / 요일 관련 키워드 (한글 및 영문)
+        val dateKeywords = listOf(
+            "월요일", "화요일", "수요일", "목요일", "금요일", "토요일", "일요일",
+            "오늘", "어제", "내일", "월 ", "일 ", "년 ",
+            "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
+            "today", "yesterday"
+        )
+        if (dateKeywords.any { lower.contains(it) }) return true
+
+        // 3. 시간 형식 정규식 (예: 12:06:44, 12:06, 00:05 등)
+        val timeRegex = Regex("""^.*(\d{1,2}:\d{2}(:\d{2})?).*$""")
+        if (timeRegex.matches(trimmed)) return true
+
+        // 4. 날짜 형식 정규식 (예: 8월 8일, 2026.08.08, 2026-08-08, 08/08 등)
+        val dateRegex = Regex("""^.*(\d{1,4}[년월일./-]\s*\d{1,2}[월일./-]?\s*\d{0,4}[일]?).*$""")
+        if (dateRegex.matches(trimmed)) return true
+
+        // 5. AM/PM 및 오전/오후 시간 표기
+        if (lower.contains("am") || lower.contains("pm") || lower.contains("오전") || lower.contains("오후")) {
+            if (Regex("""\d""").containsMatchIn(trimmed)) return true
+        }
+
+        return false
     }
 
     private fun performClickOrParentClick(node: AccessibilityNodeInfo?): Boolean {

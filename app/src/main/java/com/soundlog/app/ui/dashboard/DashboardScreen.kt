@@ -94,14 +94,19 @@ fun DashboardScreen() {
     var isTestingRecognition by remember { mutableStateOf(false) }
     var isTestingTelegram by remember { mutableStateOf(false) }
     var serviceEnabled by remember { mutableStateOf(settings.isServiceEnabled) }
-    var isChecklistExpanded by remember { mutableStateOf(true) }
 
     // Live checklist items
     var checklistItems by remember { mutableStateOf(AppChecklistHelper.getChecklist(context)) }
+    val initialAllPassed = remember(checklistItems) { checklistItems.all { it.isPassed } }
+    var isChecklistExpanded by remember { mutableStateOf(!initialAllPassed) }
 
     // Re-check permissions on resume/re-render
     LaunchedEffect(Unit) {
-        checklistItems = AppChecklistHelper.getChecklist(context)
+        val updated = AppChecklistHelper.getChecklist(context)
+        checklistItems = updated
+        if (updated.all { it.isPassed }) {
+            isChecklistExpanded = false
+        }
     }
 
     val passedCount = checklistItems.count { it.isPassed }
@@ -196,7 +201,11 @@ fun DashboardScreen() {
 
                         checklistItems.forEach { item ->
                             ChecklistItemRow(item = item, onRefresh = {
-                                checklistItems = AppChecklistHelper.getChecklist(context)
+                                val updated = AppChecklistHelper.getChecklist(context)
+                                checklistItems = updated
+                                if (updated.all { it.isPassed }) {
+                                    isChecklistExpanded = false
+                                }
                             })
                             Spacer(modifier = Modifier.height(10.dp))
                         }
@@ -221,13 +230,13 @@ fun DashboardScreen() {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(
                             modifier = Modifier
-                                .size(14.dp)
+                                .size(12.dp)
                                 .clip(CircleShape)
                                 .background(if (serviceEnabled && isAccessibilityActive) AccentGreen else AccentRed)
                         )
                         Spacer(modifier = Modifier.width(10.dp))
                         Text(
-                            text = if (serviceEnabled && isAccessibilityActive) "🟢 24시간 정상 가동 중" else "🔴 서비스 멈춤/대기",
+                            text = if (serviceEnabled && isAccessibilityActive) "모니터링 작동" else "서비스 멈춤/대기",
                             fontWeight = FontWeight.Bold,
                             fontSize = 16.sp,
                             color = TextPrimary
