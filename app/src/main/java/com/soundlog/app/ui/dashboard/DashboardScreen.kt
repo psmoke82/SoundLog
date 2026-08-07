@@ -31,6 +31,7 @@ import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.FactCheck
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Warning
@@ -41,6 +42,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Divider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -62,8 +64,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.soundlog.app.SoundLogApp
+import com.soundlog.app.automation.SongKeyNormalizer
+import com.soundlog.app.data.local.entity.SongResultEntity
 import com.soundlog.app.service.ForegroundSchedulerService
 import com.soundlog.app.service.ShazamAccessibilityService
+import com.soundlog.app.service.WatchdogManager
 import com.soundlog.app.ui.theme.AccentGreen
 import com.soundlog.app.ui.theme.AccentRed
 import com.soundlog.app.ui.theme.AccentYellow
@@ -76,13 +81,15 @@ import com.soundlog.app.ui.theme.TextMuted
 import com.soundlog.app.ui.theme.TextPrimary
 import com.soundlog.app.ui.theme.TextSecondary
 import com.soundlog.app.util.AppChecklistHelper
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
 @Composable
-fun DashboardScreen() {
+fun DashboardScreen(onNavigateToLogs: () -> Unit = {}) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val app = SoundLogApp.instance
@@ -123,13 +130,13 @@ fun DashboardScreen() {
             .verticalScroll(scrollState),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Header
+        // Header with Right Top Toggle
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = "SoundLog Dashboard",
                     fontSize = 24.sp,
@@ -138,8 +145,50 @@ fun DashboardScreen() {
                 )
                 Text(
                     text = "24시간 상시 음악 식별 & 텔레그램 공유",
-                    fontSize = 13.sp,
+                    fontSize = 12.sp,
                     color = TextSecondary
+                )
+            }
+
+            // Top Right Monitoring Power Toggle Button
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                modifier = Modifier
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(SurfaceDark)
+                    .border(1.dp, CardBorder, RoundedCornerShape(20.dp))
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(10.dp)
+                        .clip(CircleShape)
+                        .background(if (serviceEnabled && isAccessibilityActive) AccentGreen else AccentRed)
+                )
+                Text(
+                    text = if (serviceEnabled && isAccessibilityActive) "ON" else "OFF",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 12.sp,
+                    color = if (serviceEnabled && isAccessibilityActive) AccentGreen else TextMuted
+                )
+                Switch(
+                    checked = serviceEnabled,
+                    onCheckedChange = { enabled ->
+                        serviceEnabled = enabled
+                        settings.isServiceEnabled = enabled
+                        if (enabled) {
+                            ForegroundSchedulerService.startService(context)
+                            Toast.makeText(context, "모니터링 작동 (ON)", Toast.LENGTH_SHORT).show()
+                        } else {
+                            ForegroundSchedulerService.stopService(context)
+                            Toast.makeText(context, "모니터링 중지 (OFF)", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = PrimaryNeon,
+                        checkedTrackColor = SurfaceVariantDark
+                    )
                 )
             }
         }
@@ -214,64 +263,6 @@ fun DashboardScreen() {
             }
         }
 
-        // Service Main Toggle Card
-        Card(
-            colors = CardDefaults.cardColors(containerColor = SurfaceDark),
-            modifier = Modifier
-                .fillMaxWidth()
-                .border(1.dp, CardBorder, RoundedCornerShape(16.dp))
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(12.dp)
-                                .clip(CircleShape)
-                                .background(if (serviceEnabled && isAccessibilityActive) AccentGreen else AccentRed)
-                        )
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Text(
-                            text = if (serviceEnabled && isAccessibilityActive) "모니터링 작동" else "서비스 멈춤/대기",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp,
-                            color = TextPrimary
-                        )
-                    }
-
-                    Switch(
-                        checked = serviceEnabled,
-                        onCheckedChange = { enabled ->
-                            serviceEnabled = enabled
-                            settings.isServiceEnabled = enabled
-                            if (enabled) {
-                                ForegroundSchedulerService.startService(context)
-                                Toast.makeText(context, "서비스가 시작되었습니다.", Toast.LENGTH_SHORT).show()
-                            } else {
-                                ForegroundSchedulerService.stopService(context)
-                                Toast.makeText(context, "서비스가 중지되었습니다.", Toast.LENGTH_SHORT).show()
-                            }
-                        },
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = PrimaryNeon,
-                            checkedTrackColor = SurfaceVariantDark
-                        )
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "스케줄 주기: ${settings.recognitionIntervalMinutes}분 | 타임아웃: ${settings.maxTimeoutSeconds}초 | 중복방지: ${settings.deduplicationWindowMinutes}분",
-                    fontSize = 12.sp,
-                    color = TextSecondary
-                )
-            }
-        }
-
         // Last Recognized Song Card
         Card(
             colors = CardDefaults.cardColors(containerColor = SurfaceDark),
@@ -340,14 +331,18 @@ fun DashboardScreen() {
                 value = "${statusState?.todaySuccessCount ?: 0}건",
                 color = AccentGreen,
                 icon = Icons.Default.CheckCircle,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable { onNavigateToLogs() }
             )
             StatCard(
-                title = "오늘 오류/실패",
+                title = "오늘 식별 실패",
                 value = "${statusState?.todayFailureCount ?: 0}건",
                 color = AccentRed,
                 icon = Icons.Default.Error,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable { onNavigateToLogs() }
             )
         }
 
@@ -362,15 +357,56 @@ fun DashboardScreen() {
 
         Button(
             onClick = {
-                if (!isAccessibilityActive) {
-                    Toast.makeText(context, "접근성 서비스를 먼저 켜주세요.", Toast.LENGTH_SHORT).show()
+                val service = ShazamAccessibilityService.instance
+                if (service == null) {
+                    Toast.makeText(context, "접근성 서비스(SoundLog)를 먼저 활성화해주세요.", Toast.LENGTH_SHORT).show()
                     return@Button
                 }
                 isTestingRecognition = true
-                scope.launch {
-                    ForegroundSchedulerService.startService(context)
-                    Toast.makeText(context, "인식 테스트를 시작합니다...", Toast.LENGTH_SHORT).show()
-                    isTestingRecognition = false
+                Toast.makeText(context, "Shazam 실시간 인식 테스트를 시작합니다...", Toast.LENGTH_SHORT).show()
+
+                scope.launch(Dispatchers.IO) {
+                    val watchdog = WatchdogManager(context)
+
+                    service.startRecognitionFlow(settings.maxTimeoutSeconds) { result ->
+                        scope.launch(Dispatchers.IO) {
+                            try {
+                                if (result.success && !result.artist.isNullOrBlank() && !result.title.isNullOrBlank()) {
+                                    val artistName = result.artist
+                                    val songTitle = result.title
+                                    val songKey = SongKeyNormalizer.generateSongKey(artistName, songTitle)
+
+                                    val newSong = SongResultEntity(
+                                        artist = artistName,
+                                        title = songTitle,
+                                        songKey = songKey
+                                    )
+                                    val sendSuccess = app.telegramQueueManager.enqueueAndSend(newSong)
+                                    if (sendSuccess) {
+                                        watchdog.recordSuccess(artistName, songTitle)
+                                        withContext(Dispatchers.Main) {
+                                            Toast.makeText(context, "인식 & 텔레그램 전송 성공: $artistName - $songTitle", Toast.LENGTH_LONG).show()
+                                        }
+                                    } else {
+                                        watchdog.recordLog("TELEGRAM_QUEUE", "텔레그램 전송 실패 -> 대기 큐 저장")
+                                        withContext(Dispatchers.Main) {
+                                            Toast.makeText(context, "곡 인식 성공 ($artistName - $songTitle) / 텔레그램 전송 실패", Toast.LENGTH_LONG).show()
+                                        }
+                                    }
+                                } else {
+                                    val failReason = result.errorMessage ?: "인식 실패"
+                                    watchdog.recordFailure(failReason, isNoMatch = result.isNoMatch)
+                                    withContext(Dispatchers.Main) {
+                                        Toast.makeText(context, "인식 실패: $failReason", Toast.LENGTH_LONG).show()
+                                    }
+                                }
+                            } finally {
+                                withContext(Dispatchers.Main) {
+                                    isTestingRecognition = false
+                                }
+                            }
+                        }
+                    }
                 }
             },
             enabled = !isTestingRecognition,
@@ -390,23 +426,30 @@ fun DashboardScreen() {
 
         OutlinedButton(
             onClick = {
+                val token = settings.telegramBotToken
+                val chatId = settings.telegramChatId
+                if (token.isBlank() || chatId.isBlank()) {
+                    Toast.makeText(context, "텔레그램 토큰 및 Chat ID를 먼저 설정해주세요.", Toast.LENGTH_SHORT).show()
+                    return@OutlinedButton
+                }
+
                 isTestingTelegram = true
                 scope.launch {
-                    val token = settings.telegramBotToken
-                    val chatId = settings.telegramChatId
-                    if (token.isBlank() || chatId.isBlank()) {
-                        Toast.makeText(context, "설정 화면에서 텔레그램 토큰과 Chat ID를 등록해주세요.", Toast.LENGTH_LONG).show()
-                    } else {
-                        val result = app.telegramQueueManager.testConnection(token, chatId)
-                        result.fold(
-                            onSuccess = { msg -> Toast.makeText(context, msg, Toast.LENGTH_LONG).show() },
-                            onFailure = { err -> Toast.makeText(context, err.localizedMessage, Toast.LENGTH_LONG).show() }
-                        )
-                    }
+                    val result = app.telegramQueueManager.testConnection(token, chatId)
                     isTestingTelegram = false
+                    result.fold(
+                        onSuccess = { msg ->
+                            Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+                        },
+                        onFailure = { err ->
+                            Toast.makeText(context, "오류: ${err.message}", Toast.LENGTH_LONG).show()
+                        }
+                    )
                 }
             },
             enabled = !isTestingTelegram,
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = PrimaryNeon),
+            border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryNeon),
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(12.dp)
         ) {
@@ -417,71 +460,75 @@ fun DashboardScreen() {
                 Icon(imageVector = Icons.Default.Send, contentDescription = null, tint = PrimaryNeon)
                 Spacer(modifier = Modifier.width(8.dp))
             }
-            Text(" [ Telegram 연동 테스트 ] ", color = PrimaryNeon, fontWeight = FontWeight.Bold)
-        }
-
-        OutlinedButton(
-            onClick = {
-                ForegroundSchedulerService.stopService(context)
-                ForegroundSchedulerService.startService(context)
-                Toast.makeText(context, "서비스가 재시작되었습니다.", Toast.LENGTH_SHORT).show()
-            },
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp)
-        ) {
-            Icon(imageVector = Icons.Default.Refresh, contentDescription = null, tint = TextPrimary)
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(" [ 서비스 재시작 ] ", color = TextPrimary, fontWeight = FontWeight.Bold)
+            Text("텔레그램 연동 테스트 메시지 발송", fontWeight = FontWeight.Bold)
         }
     }
 }
 
 @Composable
-fun ChecklistItemRow(item: AppChecklistHelper.ChecklistItem, onRefresh: () -> Unit) {
+fun ChecklistItemRow(
+    item: AppChecklistHelper.ChecklistItem,
+    onRefresh: () -> Unit
+) {
     val context = LocalContext.current
 
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(SurfaceVariantDark.copy(alpha = 0.5f), RoundedCornerShape(10.dp))
-            .padding(12.dp),
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(
-            imageVector = if (item.isPassed) Icons.Default.CheckCircle else Icons.Default.Warning,
-            contentDescription = null,
-            tint = if (item.isPassed) AccentGreen else AccentYellow,
-            modifier = Modifier.size(22.dp)
-        )
-        Spacer(modifier = Modifier.width(10.dp))
-
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = item.title,
-                fontWeight = FontWeight.Bold,
-                fontSize = 14.sp,
-                color = TextPrimary
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.weight(1f)
+        ) {
+            Icon(
+                imageVector = if (item.isPassed) Icons.Default.CheckCircle else Icons.Default.Warning,
+                contentDescription = null,
+                tint = if (item.isPassed) AccentGreen else AccentRed,
+                modifier = Modifier.size(18.dp)
             )
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = item.description,
-                fontSize = 11.sp,
-                color = TextSecondary
-            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Column {
+                Text(
+                    text = item.title,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp,
+                    color = TextPrimary
+                )
+                Text(
+                    text = item.description,
+                    fontSize = 11.sp,
+                    color = TextSecondary
+                )
+            }
         }
 
         if (!item.isPassed) {
-            Spacer(modifier = Modifier.width(8.dp))
-            Button(
-                onClick = {
-                    item.onAction(context)
-                    onRefresh()
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = AccentYellow),
-                shape = RoundedCornerShape(6.dp),
-                modifier = Modifier.height(32.dp)
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(AccentRed.copy(alpha = 0.2f))
+                    .border(1.dp, AccentRed, RoundedCornerShape(6.dp))
+                    .clickable {
+                        try {
+                            item.onAction(context)
+                        } catch (e: Exception) {
+                            Toast
+                                .makeText(context, "설정 화면을 열 수 없습니다.", Toast.LENGTH_SHORT)
+                                .show()
+                        }
+                    }
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
             ) {
-                Text(text = item.actionText, color = Color.Black, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("설정하기", fontSize = 11.sp, color = AccentRed, fontWeight = FontWeight.Bold)
+                    Icon(
+                        imageVector = Icons.Default.ChevronRight,
+                        contentDescription = null,
+                        tint = AccentRed,
+                        modifier = Modifier.size(14.dp)
+                    )
+                }
             }
         }
     }
@@ -497,13 +544,16 @@ fun StatCard(
 ) {
     Card(
         colors = CardDefaults.cardColors(containerColor = SurfaceDark),
-        modifier = modifier.border(1.dp, CardBorder, RoundedCornerShape(14.dp))
+        modifier = modifier.border(1.dp, CardBorder, RoundedCornerShape(12.dp))
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(imageVector = icon, contentDescription = null, tint = color, modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(6.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Text(text = title, fontSize = 12.sp, color = TextSecondary)
+                Icon(imageVector = icon, contentDescription = null, tint = color, modifier = Modifier.size(18.dp))
             }
             Spacer(modifier = Modifier.height(6.dp))
             Text(text = value, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = color)
@@ -513,6 +563,6 @@ fun StatCard(
 
 private fun formatTime(timestamp: Long): String {
     if (timestamp == 0L) return "-"
-    val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.KOREA)
+    val sdf = SimpleDateFormat("MM-dd HH:mm:ss", Locale.KOREA)
     return sdf.format(Date(timestamp))
 }

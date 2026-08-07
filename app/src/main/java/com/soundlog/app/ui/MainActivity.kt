@@ -131,7 +131,17 @@ fun MainAppScreen() {
             startDestination = Screen.Dashboard.route,
             modifier = Modifier.padding(innerPadding)
         ) {
-            composable(Screen.Dashboard.route) { DashboardScreen() }
+            composable(Screen.Dashboard.route) {
+                DashboardScreen(onNavigateToLogs = {
+                    navController.navigate(Screen.Logs.route) {
+                        popUpTo(navController.graph.findStartDestination().id) {
+                            saveState = true
+                        }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
+                })
+            }
             composable(Screen.Logs.route) { LogsScreen() }
             composable(Screen.Settings.route) { SettingsScreen() }
         }

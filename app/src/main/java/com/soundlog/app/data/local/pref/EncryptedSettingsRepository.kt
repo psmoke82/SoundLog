@@ -43,6 +43,10 @@ class EncryptedSettingsRepository(context: Context) {
         get() = sharedPreferences.getInt(KEY_MAX_RETRY, 3)
         set(value) = sharedPreferences.edit().putInt(KEY_MAX_RETRY, value).apply()
 
+    var maxSongLogCount: Int
+        get() = sharedPreferences.getInt(KEY_MAX_SONG_LOG_COUNT, 1000)
+        set(value) = sharedPreferences.edit().putInt(KEY_MAX_SONG_LOG_COUNT, value).apply()
+
     var isServiceEnabled: Boolean
         get() = sharedPreferences.getBoolean(KEY_SERVICE_ENABLED, true)
         set(value) = sharedPreferences.edit().putBoolean(KEY_SERVICE_ENABLED, value).apply()
@@ -55,6 +59,7 @@ class EncryptedSettingsRepository(context: Context) {
         private const val KEY_MAX_TIMEOUT_SEC = "max_timeout_sec"
         private const val KEY_DEDUP_WINDOW_MIN = "dedup_window_min"
         private const val KEY_MAX_RETRY = "max_retry"
+        private const val KEY_MAX_SONG_LOG_COUNT = "max_song_log_count"
         private const val KEY_SERVICE_ENABLED = "service_enabled"
     }
 }

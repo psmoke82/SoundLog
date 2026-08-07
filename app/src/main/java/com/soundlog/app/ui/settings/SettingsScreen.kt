@@ -3,7 +3,6 @@ package com.soundlog.app.ui.settings
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -21,14 +20,11 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
@@ -36,15 +32,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.soundlog.app.SoundLogApp
@@ -55,11 +50,15 @@ import com.soundlog.app.ui.theme.SurfaceDark
 import com.soundlog.app.ui.theme.SurfaceVariantDark
 import com.soundlog.app.ui.theme.TextPrimary
 import com.soundlog.app.ui.theme.TextSecondary
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 @Composable
 fun SettingsScreen() {
     val context = LocalContext.current
-    val settings = SoundLogApp.instance.settingsRepository
+    val scope = rememberCoroutineScope()
+    val app = SoundLogApp.instance
+    val settings = app.settingsRepository
 
     var botToken by remember { mutableStateOf(settings.telegramBotToken) }
     var chatId by remember { mutableStateOf(settings.telegramChatId) }
@@ -67,8 +66,8 @@ fun SettingsScreen() {
     var timeoutStr by remember { mutableStateOf(settings.maxTimeoutSeconds.toString()) }
     var dedupStr by remember { mutableStateOf(settings.deduplicationWindowMinutes.toString()) }
     var retryStr by remember { mutableStateOf(settings.maxRetryCount.toString()) }
+    var maxSongCountStr by remember { mutableStateOf(settings.maxSongLogCount.toString()) }
 
-    var isTokenVisible by remember { mutableStateOf(false) }
     val scrollState = rememberScrollState()
 
     Column(
@@ -113,30 +112,7 @@ fun SettingsScreen() {
                     label = { Text("HTTP API Bot Token") },
                     placeholder = { Text("123456789:ABCdefGhIJKlmNoPQ...") },
                     leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null, tint = PrimaryNeon) },
-                    trailingIcon = {
-                        IconButton(
-                            onClick = { isTokenVisible = !isTokenVisible },
-                            modifier = Modifier.pointerInput(Unit) {
-                                detectTapGestures(
-                                    onPress = {
-                                        isTokenVisible = true
-                                        try {
-                                            awaitRelease()
-                                        } finally {
-                                            isTokenVisible = false
-                                        }
-                                    }
-                                )
-                            }
-                        ) {
-                            Icon(
-                                imageVector = if (isTokenVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                                contentDescription = "토큰 표시/숨기기 (누르고 있으면 보임)",
-                                tint = PrimaryNeon
-                            )
-                        }
-                    },
-                    visualTransformation = if (isTokenVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                    visualTransformation = PasswordVisualTransformation(),
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     colors = customTextFieldColors()
@@ -157,7 +133,7 @@ fun SettingsScreen() {
 
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "🔒 Bot Token은 Password(***)로 보호되며, 아이콘을 누르고 있는 동안에만 확인하실 수 있습니다.",
+                    text = "🔒 Bot Token은 보안을 위해 항상 비공개(***)로 보호되며 붙여넣은 후에도 조회할 수 없습니다.",
                     fontSize = 11.sp,
                     color = TextSecondary
                 )
@@ -176,7 +152,7 @@ fun SettingsScreen() {
                     Icon(imageVector = Icons.Default.Settings, contentDescription = null, tint = PrimaryNeon)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "동적 서비스 동작 설정",
+                        text = "동적 서비스 및 로그 저장 설정",
                         fontWeight = FontWeight.Bold,
                         fontSize = 16.sp,
                         color = TextPrimary
@@ -232,6 +208,17 @@ fun SettingsScreen() {
                         colors = customTextFieldColors()
                     )
                 }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                OutlinedTextField(
+                    value = maxSongCountStr,
+                    onValueChange = { maxSongCountStr = it },
+                    label = { Text("음악 식별 로그 최대 저장 건수") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    colors = customTextFieldColors()
+                )
             }
         }
 
@@ -242,6 +229,7 @@ fun SettingsScreen() {
                 val timeout = timeoutStr.toIntOrNull() ?: 12
                 val dedup = dedupStr.toIntOrNull() ?: 10
                 val retry = retryStr.toIntOrNull() ?: 3
+                val maxSong = maxSongCountStr.toIntOrNull() ?: 1000
 
                 settings.telegramBotToken = botToken.trim()
                 settings.telegramChatId = chatId.trim()
@@ -249,6 +237,12 @@ fun SettingsScreen() {
                 settings.maxTimeoutSeconds = timeout.coerceAtLeast(5)
                 settings.deduplicationWindowMinutes = dedup.coerceAtLeast(1)
                 settings.maxRetryCount = retry.coerceAtLeast(1)
+                settings.maxSongLogCount = maxSong.coerceAtLeast(10)
+
+                scope.launch(Dispatchers.IO) {
+                    app.database.songResultDao().pruneOldSongs(settings.maxSongLogCount)
+                    app.database.executionLogDao().pruneOldLogs(1000)
+                }
 
                 Toast.makeText(context, "설정이 성공적으로 저장되었습니다.", Toast.LENGTH_SHORT).show()
             },

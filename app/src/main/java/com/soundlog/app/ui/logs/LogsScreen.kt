@@ -2,6 +2,7 @@ package com.soundlog.app.ui.logs
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,14 +19,16 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MusicNote
-import androidx.compose.material.icons.filled.Send
-import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.TabRowDefaults
@@ -39,8 +42,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.soundlog.app.SoundLogApp
@@ -64,12 +67,12 @@ import java.util.Locale
 fun LogsScreen() {
     val app = SoundLogApp.instance
     var selectedTabIndex by remember { mutableStateOf(0) }
-    val tabs = listOf("곡 식별 이력", "스텝별 세부 작동 로그")
+    val tabs = listOf("식별 이력 (음악 식별 로그)", "작동 로그 (앱 시스템 작동)")
 
     val songs by app.database.songResultDao().getAllSongsFlow()
         .collectAsState(initial = emptyList())
 
-    val logs by app.database.executionLogDao().getRecentLogsFlow()
+    val logs by app.database.executionLogDao().getRecentLogsFlow(limit = 1000)
         .collectAsState(initial = emptyList())
 
     Column(
@@ -80,7 +83,7 @@ fun LogsScreen() {
     ) {
         Text(
             text = "음악 식별 및 작동 로그",
-            fontSize = 24.sp,
+            fontSize = 22.sp,
             fontWeight = FontWeight.Bold,
             color = TextPrimary
         )
@@ -105,6 +108,7 @@ fun LogsScreen() {
                     text = {
                         Text(
                             text = title,
+                            fontSize = 13.sp,
                             fontWeight = if (selectedTabIndex == index) FontWeight.Bold else FontWeight.Normal,
                             color = if (selectedTabIndex == index) PrimaryNeon else TextSecondary
                         )
@@ -113,7 +117,7 @@ fun LogsScreen() {
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(14.dp))
 
         when (selectedTabIndex) {
             0 -> SongHistoryList(songs = songs)
@@ -124,94 +128,162 @@ fun LogsScreen() {
 
 @Composable
 fun SongHistoryList(songs: List<SongResultEntity>) {
-    if (songs.isEmpty()) {
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
-        ) {
-            Text("아직 저장된 식별 곡 이력이 없습니다.", color = TextMuted)
+    var searchQuery by remember { mutableStateOf("") }
+
+    val filteredSongs = remember(songs, searchQuery) {
+        if (searchQuery.isBlank()) {
+            songs
+        } else {
+            songs.filter { song ->
+                song.title.contains(searchQuery, ignoreCase = true) ||
+                song.artist.contains(searchQuery, ignoreCase = true)
+            }
         }
-    } else {
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            items(songs) { song ->
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = SurfaceDark),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .border(1.dp, CardBorder, RoundedCornerShape(12.dp))
+    }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        OutlinedTextField(
+            value = searchQuery,
+            onValueChange = { searchQuery = it },
+            placeholder = { Text("곡 제목 또는 아티스트 검색...", color = TextMuted, fontSize = 13.sp) },
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = PrimaryNeon) },
+            trailingIcon = {
+                if (searchQuery.isNotEmpty()) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Clear",
+                        tint = TextMuted,
+                        modifier = Modifier.clickable { searchQuery = "" }
+                    )
+                }
+            },
+            singleLine = true,
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = PrimaryNeon,
+                unfocusedBorderColor = CardBorder,
+                focusedTextColor = TextPrimary,
+                unfocusedTextColor = TextPrimary,
+                focusedContainerColor = SurfaceDark,
+                unfocusedContainerColor = SurfaceDark
+            ),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 10.dp),
+            shape = RoundedCornerShape(12.dp)
+        )
+
+        if (filteredSongs.isEmpty()) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = if (searchQuery.isBlank()) "아직 저장된 식별 곡 이력이 없습니다." else "검색 결과가 없습니다.",
+                    color = TextMuted
+                )
+            }
+        } else {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(filteredSongs) { song ->
+                    SongHistoryItemCard(song = song)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun SongHistoryItemCard(song: SongResultEntity) {
+    var isExpanded by remember { mutableStateOf(false) }
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = SurfaceDark),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, CardBorder, RoundedCornerShape(10.dp))
+            .clickable { isExpanded = !isExpanded }
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
                 ) {
-                    Column(modifier = Modifier.padding(14.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Default.MusicNote,
-                                    contentDescription = null,
-                                    tint = PrimaryNeon,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = song.title,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 16.sp,
-                                    color = TextPrimary
-                                )
-                            }
+                    Icon(
+                        imageVector = Icons.Default.MusicNote,
+                        contentDescription = null,
+                        tint = PrimaryNeon,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = song.title,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        color = TextPrimary,
+                        maxLines = if (isExpanded) Int.MAX_VALUE else 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
 
-                            val (statusColor, statusText) = when (song.telegramStatus) {
-                                SongResultEntity.STATUS_SENT -> Pair(AccentGreen, "전송 완료 ✅")
-                                SongResultEntity.STATUS_PENDING -> Pair(AccentYellow, "대기 중 ⏳")
-                                else -> Pair(AccentRed, "실패 ❌")
-                            }
+                Spacer(modifier = Modifier.width(8.dp))
 
-                            Text(
-                                text = statusText,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = statusColor
-                            )
-                        }
+                val (statusColor, statusText) = when (song.telegramStatus) {
+                    SongResultEntity.STATUS_SENT -> Pair(AccentGreen, "전송 완료 ✅")
+                    SongResultEntity.STATUS_PENDING -> Pair(AccentYellow, "대기 중 ⏳")
+                    else -> Pair(AccentRed, "실패 ❌")
+                }
 
-                        Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = statusText,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = statusColor
+                )
+            }
+
+            Spacer(modifier = Modifier.height(2.dp))
+
+            Text(
+                text = song.artist,
+                fontSize = 13.sp,
+                color = TextSecondary,
+                maxLines = if (isExpanded) Int.MAX_VALUE else 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(start = 24.dp)
+            )
+
+            if (isExpanded) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "인식 일시: ${formatLogTimeFull(song.detectedAt)}",
+                        fontSize = 11.sp,
+                        color = TextMuted
+                    )
+                    if (song.retryCount > 0) {
                         Text(
-                            text = song.artist,
-                            fontSize = 14.sp,
-                            color = TextSecondary,
-                            modifier = Modifier.padding(start = 28.dp)
+                            text = "재시도: ${song.retryCount}회",
+                            fontSize = 11.sp,
+                            color = AccentYellow
                         )
-
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(
-                                text = "식별 시각: ${formatLogTime(song.detectedAt)}",
-                                fontSize = 11.sp,
-                                color = TextMuted
-                            )
-                            if (song.retryCount > 0) {
-                                Text(
-                                    text = "재시도: ${song.retryCount}회",
-                                    fontSize = 11.sp,
-                                    color = AccentYellow
-                                )
-                            }
-                        }
-
-                        if (!song.errorMessage.isNullOrBlank()) {
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = "사유: ${song.errorMessage}",
-                                fontSize = 11.sp,
-                                color = AccentRed
-                            )
-                        }
                     }
+                }
+
+                if (!song.errorMessage.isNullOrBlank()) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "오류 사유: ${song.errorMessage}",
+                        fontSize = 11.sp,
+                        color = AccentRed
+                    )
                 }
             }
         }
@@ -293,5 +365,10 @@ fun ExecutionLogList(logs: List<ExecutionLogEntity>) {
 
 private fun formatLogTime(timestamp: Long): String {
     val sdf = SimpleDateFormat("MM-dd HH:mm:ss", Locale.KOREA)
+    return sdf.format(Date(timestamp))
+}
+
+private fun formatLogTimeFull(timestamp: Long): String {
+    val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.KOREA)
     return sdf.format(Date(timestamp))
 }

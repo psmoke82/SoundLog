@@ -26,7 +26,10 @@ interface ExecutionLogDao {
     suspend fun insert(log: ExecutionLogEntity)
 
     @Query("SELECT * FROM execution_logs ORDER BY timestamp DESC LIMIT :limit")
-    fun getRecentLogsFlow(limit: Int = 100): Flow<List<ExecutionLogEntity>>
+    fun getRecentLogsFlow(limit: Int = 1000): Flow<List<ExecutionLogEntity>>
+
+    @Query("DELETE FROM execution_logs WHERE id NOT IN (SELECT id FROM execution_logs ORDER BY timestamp DESC LIMIT :maxCount)")
+    suspend fun pruneOldLogs(maxCount: Int = 1000)
 
     @Query("DELETE FROM execution_logs")
     suspend fun clearLogs()

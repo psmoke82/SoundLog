@@ -179,7 +179,7 @@ object ShazamNodeFinder {
 
         val lower = trimmed.lowercase()
 
-        // 1. UI 시스템 안내/도움말 키워드 필터링
+        // 1. UI 시스템 안내/도움말/상태 키워드 필터링
         val ignoredKeywords = listOf(
             "shazam", "search", "library", "charts", "settings",
             "open in", "play full song", "connect", "spotify", "apple music",
@@ -187,12 +187,16 @@ object ShazamNodeFinder {
             "listening", "shazaming", "찾는 중", "듣는 중", "다시 시도", "결과 없음",
             "my library", "recent shazams", "top tracks", "음악감상", "확인하세요",
             "기기에", "인식되는지", "도움말", "서비스", "약관", "정책", "플레이리스트",
-            "인증", "설정", "권한", "알림", "연결", "안내", "확인"
+            "인증", "설정", "권한", "알림", "연결", "안내", "확인", "일치하는",
+            "검색 중", "검색중", "기다려주세요", "기다려", "잠시만", "중입니다",
+            "수음 중", "인식 중", "검색", "대기"
         )
         if (ignoredKeywords.any { lower.contains(it) }) return true
 
-        // 2. 가이드 문장 (~하세요, ~입니다, ~바랍니다 등 서술형 문장) 필터링
-        if (trimmed.endsWith("하세요") || trimmed.endsWith("입니다") || trimmed.endsWith("십시요") || trimmed.endsWith("바랍니다")) {
+        // 2. 가이드 문장 (~하세요, ~입니다, ~바랍니다, ~주세요 등 서술형 문장) 필터링
+        if (trimmed.endsWith("하세요") || trimmed.endsWith("입니다") ||
+            trimmed.endsWith("십시요") || trimmed.endsWith("바랍니다") ||
+            trimmed.endsWith("주세요") || trimmed.endsWith("검색 중")) {
             return true
         }
 

@@ -36,6 +36,7 @@ class TelegramQueueManager(
 
     suspend fun enqueueAndSend(song: SongResultEntity): Boolean = withContext(Dispatchers.IO) {
         val insertedId = songResultDao.insert(song)
+        songResultDao.pruneOldSongs(settingsRepository.maxSongLogCount)
         val currentSong = song.copy(id = insertedId)
         return@withContext sendSingleSong(currentSong)
     }
@@ -61,7 +62,7 @@ class TelegramQueueManager(
             }
 
             val url = "https://api.telegram.org/bot$token/sendMessage"
-            val testMsg = "🎵 <b>[지금 나오는 음악] (${formatTimestamp(System.currentTimeMillis())})</b>\n\n🎤 <b>아티스트:</b> SoundLog Test\n🎼 <b>곡명:</b> 텔레그램 연동 테스트\n\n#SoundLog #alookat"
+            val testMsg = "🎵 <b>[지금 나오는 음악]</b>\n\n🎤 <b>아티스트:</b> SoundLog Test\n🎼 <b>곡명:</b> 텔레그램 연동 테스트\n\n#SoundLog #alookat"
             val response = api.sendMessage(url, chatId, testMsg)
             if (response.isSuccessful && response.body()?.ok == true) {
                 Result.success("텔레그램 전송 성공! (Msg ID: ${response.body()?.result?.messageId})")
@@ -162,9 +163,8 @@ class TelegramQueueManager(
     }
 
     private fun formatSongMessage(song: SongResultEntity): String {
-        val timeStr = formatTimestamp(song.detectedAt)
         return """
-            🎵 <b>[지금 나오는 음악] ($timeStr)</b>
+            🎵 <b>[지금 나오는 음악]</b>
             
             🎤 <b>아티스트:</b> ${escapeHtml(song.artist)}
             🎼 <b>곡명:</b> ${escapeHtml(song.title)}

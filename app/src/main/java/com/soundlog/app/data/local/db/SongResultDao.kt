@@ -31,6 +31,9 @@ interface SongResultDao {
     @Query("SELECT COUNT(*) FROM song_results WHERE detectedAt >= :startOfDay")
     suspend fun getTodayCount(startOfDay: Long): Int
 
+    @Query("DELETE FROM song_results WHERE id NOT IN (SELECT id FROM song_results ORDER BY detectedAt DESC LIMIT :maxCount)")
+    suspend fun pruneOldSongs(maxCount: Int)
+
     @Query("DELETE FROM song_results")
     suspend fun clearAll()
 }

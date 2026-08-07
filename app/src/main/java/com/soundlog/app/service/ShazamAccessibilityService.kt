@@ -40,9 +40,19 @@ class ShazamAccessibilityService : AccessibilityService() {
                 val callback = activeCallback
                 if (callback != null && isMonitoringActive) {
                     isMonitoringActive = false
+                    minimizeShazamApp()
                     callback(result)
                 }
             }
+        }
+    }
+
+    fun minimizeShazamApp() {
+        try {
+            val success = performGlobalAction(GLOBAL_ACTION_HOME)
+            Log.i(TAG, "Minimizing Shazam app (GLOBAL_ACTION_HOME) -> Success: $success")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to minimize Shazam app", e)
         }
     }
 
@@ -129,6 +139,7 @@ class ShazamAccessibilityService : AccessibilityService() {
 
             if (isMonitoringActive) {
                 isMonitoringActive = false
+                minimizeShazamApp()
                 val res = finalResult ?: ShazamNodeFinder.RecognitionResult(false, errorMessage = "동적 타임아웃(${maxTimeoutSeconds}s) 초과 - 인식 실패")
                 onResult(res)
             }
