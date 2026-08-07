@@ -1,11 +1,13 @@
 package com.soundlog.app.service
 
 import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
-import android.content.pm.ServiceInfo
+import android.os.Binder
 import android.os.Build
 import android.os.IBinder
 import android.util.Log
@@ -16,6 +18,7 @@ import com.soundlog.app.automation.SongKeyNormalizer
 import com.soundlog.app.data.local.entity.SongResultEntity
 import com.soundlog.app.ui.MainActivity
 import com.soundlog.app.util.PowerManagerHelper
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -26,29 +29,28 @@ import kotlinx.coroutines.withContext
 
 class ForegroundSchedulerService : Service() {
 
-    private val serviceJob = Job()
-    private val serviceScope = CoroutineScope(Dispatchers.Main + serviceJob)
+    private val binder = LocalBinder()
+    private val serviceScope = CoroutineScope(Dispatchers.Main + Job())
+    private var isLoopRunning = false
 
     private lateinit var powerManagerHelper: PowerManagerHelper
     private lateinit var watchdogManager: WatchdogManager
 
-    private var isLoopRunning = false
+    inner class LocalBinder : Binder() {
+        fun getService(): ForegroundSchedulerService = this@ForegroundSchedulerService
+    }
 
     override fun onCreate() {
         super.onCreate()
         powerManagerHelper = PowerManagerHelper(this)
         watchdogManager = WatchdogManager(this)
+        createNotificationChannel()
         Log.i(TAG, "ForegroundSchedulerService Created")
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        val action = intent?.action
-        if (action == ACTION_STOP_SERVICE) {
-            stopForegroundService()
-            return START_NOT_STICKY
-        }
-
-        startForegroundInternal()
+        val notification = createNotification("SoundLog 24/7 음악 식별 서비스 가동 중")
+        startForeground(NOTIFICATION_ID, notification)
 
         if (!isLoopRunning) {
             isLoopRunning = true
@@ -58,17 +60,36 @@ class ForegroundSchedulerService : Service() {
         return START_STICKY
     }
 
-    private fun startForegroundInternal() {
-        val notification = createNotification("SoundLog 24시간 가동 중...")
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(
-                NOTIFICATION_ID,
-                notification,
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
-            )
-        } else {
-            startForeground(NOTIFICATION_ID, notification)
+    override fun onBind(intent: Intent?): IBinder = binder
+
+    override fun onDestroy() {
+        super.onDestroy()
+        isLoopRunning = false
+        serviceScope.launch(Dispatchers.IO) {
+            watchdogManager.recordLog("SERVICE_STOP", "Foreground Service 종료")
         }
+        powerManagerHelper.releaseWakeLock()
+        Log.i(TAG, "ForegroundSchedulerService Destroyed")
+    }
+
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                CHANNEL_ID,
+                "SoundLog Service Channel",
+                NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = "SoundLog 상시 가동 채널"
+            }
+            val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            manager.createNotificationChannel(channel)
+        }
+    }
+
+    private fun updateNotification(statusText: String) {
+        val notification = createNotification(statusText)
+        val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        manager.notify(NOTIFICATION_ID, notification)
     }
 
     private fun startSchedulerLoop() {
@@ -101,7 +122,7 @@ class ForegroundSchedulerService : Service() {
         watchdogManager.recordLog("CYCLE_START", "인식 주기 도달 - WakeLock 획득 및 인식 시작")
 
         // 1. WakeLock 획득 (화면 ON)
-        powerManagerHelper.acquireWakeLockAndTurnScreenOn(timeoutMs = (settings.maxTimeoutSeconds + 10) * 1000L)
+        powerManagerHelper.acquireWakeLockAndTurnScreenOn(timeoutMs = (settings.maxTimeoutSeconds + 15) * 1000L)
 
         return@withContext try {
             // 2. 텔레그램 오프라인 미전송 큐 처리
@@ -116,46 +137,58 @@ class ForegroundSchedulerService : Service() {
                 return@withContext false
             }
 
-            // 4. Shazam 인식 수행
-            var cycleSuccess = false
+            // 4. Shazam 인식 동기 대기 (CompletableDeferred)
+            val deferredResult = CompletableDeferred<Boolean>()
+
             accessibilityService.startRecognitionFlow(settings.maxTimeoutSeconds) { result ->
                 serviceScope.launch(Dispatchers.IO) {
-                    if (result.success && !result.artist.isNullOrBlank() && !result.title.isNullOrBlank()) {
-                        val artist = result.artist
-                        val title = result.title
-                        val songKey = SongKeyNormalizer.generateSongKey(artist, title)
+                    try {
+                        if (result.success && !result.artist.isNullOrBlank() && !result.title.isNullOrBlank()) {
+                            val artist = result.artist
+                            val title = result.title
+                            val songKey = SongKeyNormalizer.generateSongKey(artist, title)
 
-                        // 중복 검사 (예: 10분 이내 동일 곡)
-                        val isDup = SongKeyNormalizer.isDuplicate(
-                            db.songResultDao(),
-                            artist,
-                            title,
-                            settings.deduplicationWindowMinutes
-                        )
-
-                        if (isDup) {
-                            Log.i(TAG, "Duplicate song detected ($songKey). Skipping Telegram broadcast.")
-                            watchdogManager.recordLog("DUPLICATE_SKIP", "중복 곡 발송 스킵: $artist - $title")
-                        } else {
-                            val newSong = SongResultEntity(
-                                artist = artist,
-                                title = title,
-                                songKey = songKey
+                            // 중복 검사 (예: 10분 이내 동일 곡)
+                            val isDup = SongKeyNormalizer.isDuplicate(
+                                db.songResultDao(),
+                                artist,
+                                title,
+                                settings.deduplicationWindowMinutes
                             )
-                            app.telegramQueueManager.enqueueAndSend(newSong)
-                            watchdogManager.recordSuccess(artist, title)
-                            updateNotification("최근 인식: $artist - $title")
+
+                            if (isDup) {
+                                Log.i(TAG, "Duplicate song detected ($songKey). Skipping Telegram broadcast.")
+                                watchdogManager.recordLog("DUPLICATE_SKIP", "중복 곡 발송 스킵: $artist - $title")
+                            } else {
+                                val newSong = SongResultEntity(
+                                    artist = artist,
+                                    title = title,
+                                    songKey = songKey
+                                )
+                                val sendSuccess = app.telegramQueueManager.enqueueAndSend(newSong)
+                                if (sendSuccess) {
+                                    watchdogManager.recordSuccess(artist, title)
+                                    updateNotification("최근 인식 성공: $artist - $title")
+                                } else {
+                                    watchdogManager.recordLog("TELEGRAM_QUEUE", "텔레그램 전송 실패 -> 대기 큐에 저장: $artist - $title")
+                                }
+                            }
+                            deferredResult.complete(true)
+                        } else {
+                            val failReason = result.errorMessage ?: "알 수 없는 인식 실패"
+                            Log.w(TAG, "Recognition Failed: $failReason")
+                            watchdogManager.recordFailure(failReason, isNoMatch = result.isNoMatch)
+                            deferredResult.complete(false)
                         }
-                        cycleSuccess = true
-                    } else {
-                        val failReason = result.errorMessage ?: "알 수 없는 인식 실패"
-                        Log.w(TAG, "Recognition Failed: $failReason")
-                        watchdogManager.recordFailure(failReason, isNoMatch = result.isNoMatch)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error handling Shazam result", e)
+                        deferredResult.complete(false)
                     }
                 }
             }
 
-            cycleSuccess
+            // Shazam 서비스 수음이 완전히 끝날 때까지 대기
+            deferredResult.await()
         } catch (e: Exception) {
             Log.e(TAG, "Exception during recognition cycle", e)
             watchdogManager.recordFailure("실행 도중 예외 발생: ${e.localizedMessage}")
@@ -178,41 +211,19 @@ class ForegroundSchedulerService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        return NotificationCompat.Builder(this, SoundLogApp.NOTIFICATION_CHANNEL_ID)
-            .setContentTitle("SoundLog 24시간 가동 중")
+        return NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle("SoundLog 24/7 상시 음악 식별")
             .setContentText(statusText)
             .setSmallIcon(R.drawable.ic_launcher_icon)
-            .setOngoing(true)
             .setContentIntent(pendingIntent)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setOngoing(true)
             .build()
     }
 
-    private fun updateNotification(statusText: String) {
-        val notification = createNotification(statusText)
-        val notificationManager = getSystemService(NOTIFICATION_SERVICE) as? android.app.NotificationManager
-        notificationManager?.notify(NOTIFICATION_ID, notification)
-    }
-
-    private fun stopForegroundService() {
-        isLoopRunning = false
-        stopForeground(STOP_FOREGROUND_REMOVE)
-        stopSelf()
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        serviceJob.cancel()
-        powerManagerHelper.releaseWakeLock()
-        Log.i(TAG, "ForegroundSchedulerService Destroyed")
-    }
-
-    override fun onBind(intent: Intent?): IBinder? = null
-
     companion object {
         private const val TAG = "ForegroundScheduler"
-        const val NOTIFICATION_ID = 1001
-        const val ACTION_STOP_SERVICE = "com.soundlog.app.ACTION_STOP_SERVICE"
+        private const val NOTIFICATION_ID = 1001
+        private const val CHANNEL_ID = "soundlog_foreground_channel"
 
         fun startService(context: Context) {
             val intent = Intent(context, ForegroundSchedulerService::class.java)
@@ -224,10 +235,8 @@ class ForegroundSchedulerService : Service() {
         }
 
         fun stopService(context: Context) {
-            val intent = Intent(context, ForegroundSchedulerService::class.java).apply {
-                action = ACTION_STOP_SERVICE
-            }
-            context.startService(intent)
+            val intent = Intent(context, ForegroundSchedulerService::class.java)
+            context.stopService(intent)
         }
     }
 }

@@ -3,6 +3,7 @@ package com.soundlog.app.ui.settings
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -20,11 +21,14 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
@@ -36,8 +40,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.soundlog.app.SoundLogApp
@@ -61,6 +68,7 @@ fun SettingsScreen() {
     var dedupStr by remember { mutableStateOf(settings.deduplicationWindowMinutes.toString()) }
     var retryStr by remember { mutableStateOf(settings.maxRetryCount.toString()) }
 
+    var isTokenVisible by remember { mutableStateOf(false) }
     val scrollState = rememberScrollState()
 
     Column(
@@ -105,6 +113,30 @@ fun SettingsScreen() {
                     label = { Text("HTTP API Bot Token") },
                     placeholder = { Text("123456789:ABCdefGhIJKlmNoPQ...") },
                     leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null, tint = PrimaryNeon) },
+                    trailingIcon = {
+                        IconButton(
+                            onClick = { isTokenVisible = !isTokenVisible },
+                            modifier = Modifier.pointerInput(Unit) {
+                                detectTapGestures(
+                                    onPress = {
+                                        isTokenVisible = true
+                                        try {
+                                            awaitRelease()
+                                        } finally {
+                                            isTokenVisible = false
+                                        }
+                                    }
+                                )
+                            }
+                        ) {
+                            Icon(
+                                imageVector = if (isTokenVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                contentDescription = "토큰 표시/숨기기 (누르고 있으면 보임)",
+                                tint = PrimaryNeon
+                            )
+                        }
+                    },
+                    visualTransformation = if (isTokenVisible) VisualTransformation.None else PasswordVisualTransformation(),
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     colors = customTextFieldColors()
@@ -125,7 +157,7 @@ fun SettingsScreen() {
 
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "🔒 입출력되는 Bot Token 및 Chat ID는 Android Keystore로 암호화되어 안전하게 보관됩니다.",
+                    text = "🔒 Bot Token은 Password(***)로 보호되며, 아이콘을 누르고 있는 동안에만 확인하실 수 있습니다.",
                     fontSize = 11.sp,
                     color = TextSecondary
                 )
