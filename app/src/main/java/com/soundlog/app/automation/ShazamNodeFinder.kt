@@ -104,7 +104,7 @@ object ShazamNodeFinder {
     }
 
     /**
-     * Shazam 화면에서 곡명과 아티스트 텍스트를 파싱합니다. (날짜/시간 텍스트 제외 처리 적용)
+     * Shazam 화면에서 곡명과 아티스트 텍스트를 파싱합니다.
      */
     fun extractRecognitionResult(rootNode: AccessibilityNodeInfo?): RecognitionResult {
         if (rootNode == null) return RecognitionResult(false, errorMessage = "Root node is null")
@@ -141,11 +141,11 @@ object ShazamNodeFinder {
             return RecognitionResult(true, artist = artist, title = title)
         }
 
-        // 3. Fallback: 노드 트리를 탐색하여 날짜/시간이 아닌 순수 곡명 & 아티스트 텍스트 파싱
+        // 3. Fallback: 노드 트리를 탐색하여 순수 곡명 & 아티스트 텍스트 파싱
         val allTextNodes = mutableListOf<String>()
         collectCleanTextStrings(rootNode, allTextNodes)
 
-        // 날짜/시간 및 UI 시스템 문자열 필터링
+        // UI 가이드문구 및 날짜/시간 필터링
         val validTexts = allTextNodes.filter { text ->
             !isDateTimeOrIgnoredText(text)
         }.distinct()
@@ -179,17 +179,24 @@ object ShazamNodeFinder {
 
         val lower = trimmed.lowercase()
 
-        // 1. UI 시스템 기본 키워드 필터링
+        // 1. UI 시스템 안내/도움말 키워드 필터링
         val ignoredKeywords = listOf(
             "shazam", "search", "library", "charts", "settings",
             "open in", "play full song", "connect", "spotify", "apple music",
             "youtube", "lyrics", "share", "video", "track", "listen", "tap to",
             "listening", "shazaming", "찾는 중", "듣는 중", "다시 시도", "결과 없음",
-            "my library", "recent shazams", "top tracks"
+            "my library", "recent shazams", "top tracks", "음악감상", "확인하세요",
+            "기기에", "인식되는지", "도움말", "서비스", "약관", "정책", "플레이리스트",
+            "인증", "설정", "권한", "알림", "연결", "안내", "확인"
         )
         if (ignoredKeywords.any { lower.contains(it) }) return true
 
-        // 2. 날짜 / 요일 관련 키워드 (한글 및 영문)
+        // 2. 가이드 문장 (~하세요, ~입니다, ~바랍니다 등 서술형 문장) 필터링
+        if (trimmed.endsWith("하세요") || trimmed.endsWith("입니다") || trimmed.endsWith("십시요") || trimmed.endsWith("바랍니다")) {
+            return true
+        }
+
+        // 3. 날짜 / 요일 관련 키워드
         val dateKeywords = listOf(
             "월요일", "화요일", "수요일", "목요일", "금요일", "토요일", "일요일",
             "오늘", "어제", "내일", "월 ", "일 ", "년 ",
@@ -198,15 +205,15 @@ object ShazamNodeFinder {
         )
         if (dateKeywords.any { lower.contains(it) }) return true
 
-        // 3. 시간 형식 정규식 (예: 12:06:44, 12:06, 00:05 등)
+        // 4. 시간 정규식 (12:06:44, 12:06 등)
         val timeRegex = Regex("""^.*(\d{1,2}:\d{2}(:\d{2})?).*$""")
         if (timeRegex.matches(trimmed)) return true
 
-        // 4. 날짜 형식 정규식 (예: 8월 8일, 2026.08.08, 2026-08-08, 08/08 등)
+        // 5. 날짜 정규식 (8월 8일, 2026.08.08 등)
         val dateRegex = Regex("""^.*(\d{1,4}[년월일./-]\s*\d{1,2}[월일./-]?\s*\d{0,4}[일]?).*$""")
         if (dateRegex.matches(trimmed)) return true
 
-        // 5. AM/PM 및 오전/오후 시간 표기
+        // 6. AM/PM 및 오전/오후
         if (lower.contains("am") || lower.contains("pm") || lower.contains("오전") || lower.contains("오후")) {
             if (Regex("""\d""").containsMatchIn(trimmed)) return true
         }
