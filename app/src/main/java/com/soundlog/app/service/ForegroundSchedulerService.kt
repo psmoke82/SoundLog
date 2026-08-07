@@ -181,7 +181,7 @@ class ForegroundSchedulerService : Service() {
         return NotificationCompat.Builder(this, SoundLogApp.NOTIFICATION_CHANNEL_ID)
             .setContentTitle("SoundLog 24시간 가동 중")
             .setContentText(statusText)
-            .setSmallIcon(R.mipmap.ic_launcher)
+            .setSmallIcon(R.drawable.ic_launcher_icon)
             .setOngoing(true)
             .setContentIntent(pendingIntent)
             .setPriority(NotificationCompat.PRIORITY_LOW)

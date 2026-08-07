@@ -18,8 +18,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Telegram
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -87,7 +87,7 @@ fun SettingsScreen() {
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(imageVector = Icons.Default.Telegram, contentDescription = null, tint = PrimaryNeon)
+                    Icon(imageVector = Icons.Default.Send, contentDescription = null, tint = PrimaryNeon)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = "텔레그램 Bot API 설정 (암호화 저장)",
@@ -117,7 +117,7 @@ fun SettingsScreen() {
                     onValueChange = { chatId = it },
                     label = { Text("Telegram Channel/Chat ID") },
                     placeholder = { Text("@my_channel_name 또는 -100123456789") },
-                    leadingIcon = { Icon(Icons.Default.Telegram, contentDescription = null, tint = PrimaryNeon) },
+                    leadingIcon = { Icon(Icons.Default.Send, contentDescription = null, tint = PrimaryNeon) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     colors = customTextFieldColors()
