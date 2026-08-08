@@ -7,17 +7,51 @@ import androidx.security.crypto.MasterKey
 
 class EncryptedSettingsRepository(context: Context) {
 
-    private val masterKey = MasterKey.Builder(context)
-        .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-        .build()
+    private val sharedPreferences: SharedPreferences = createSafeSharedPreferences(context)
 
-    private val sharedPreferences: SharedPreferences = EncryptedSharedPreferences.create(
-        context,
-        PREF_NAME,
-        masterKey,
-        EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-        EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-    )
+    companion object {
+        private const val PREF_NAME = "soundlog_encrypted_prefs"
+        private const val KEY_BOT_TOKEN = "telegram_bot_token"
+        private const val KEY_CHAT_ID = "telegram_chat_id"
+        private const val KEY_INTERVAL_MIN = "recognition_interval_min"
+        private const val KEY_MAX_TIMEOUT_SEC = "max_timeout_sec"
+        private const val KEY_DEDUP_WINDOW_MIN = "dedup_window_min"
+        private const val KEY_MAX_RETRY = "max_retry"
+        private const val KEY_MAX_SONG_LOG_COUNT = "max_song_log_count"
+        private const val KEY_SERVICE_ENABLED = "service_enabled"
+
+        private fun createSafeSharedPreferences(context: Context): SharedPreferences {
+            return try {
+                val masterKey = MasterKey.Builder(context)
+                    .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+                    .build()
+
+                EncryptedSharedPreferences.create(
+                    context,
+                    PREF_NAME,
+                    masterKey,
+                    EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                    EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+                )
+            } catch (e: Exception) {
+                try {
+                    context.deleteSharedPreferences(PREF_NAME)
+                    val masterKey = MasterKey.Builder(context)
+                        .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+                        .build()
+                    EncryptedSharedPreferences.create(
+                        context,
+                        PREF_NAME,
+                        masterKey,
+                        EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                        EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+                    )
+                } catch (e2: Exception) {
+                    context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
+                }
+            }
+        }
+    }
 
     var telegramBotToken: String
         get() = sharedPreferences.getString(KEY_BOT_TOKEN, "") ?: ""
@@ -50,16 +84,4 @@ class EncryptedSettingsRepository(context: Context) {
     var isServiceEnabled: Boolean
         get() = sharedPreferences.getBoolean(KEY_SERVICE_ENABLED, true)
         set(value) = sharedPreferences.edit().putBoolean(KEY_SERVICE_ENABLED, value).apply()
-
-    companion object {
-        private const val PREF_NAME = "soundlog_encrypted_prefs"
-        private const val KEY_BOT_TOKEN = "telegram_bot_token"
-        private const val KEY_CHAT_ID = "telegram_chat_id"
-        private const val KEY_INTERVAL_MIN = "recognition_interval_min"
-        private const val KEY_MAX_TIMEOUT_SEC = "max_timeout_sec"
-        private const val KEY_DEDUP_WINDOW_MIN = "dedup_window_min"
-        private const val KEY_MAX_RETRY = "max_retry"
-        private const val KEY_MAX_SONG_LOG_COUNT = "max_song_log_count"
-        private const val KEY_SERVICE_ENABLED = "service_enabled"
-    }
 }
