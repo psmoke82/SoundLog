@@ -1,5 +1,21 @@
 # Changelog - SoundLog
 
+## [v1.0.16] - 2026-08-08
+
+### 🚀 식별 이력/작동 로그 분리 & Shazam 인식 후 앱 복귀 릴리즈 (Release v1.0.16)
+
+- **식별 이력 / 작동 로그 탭 완전 분리**:
+  - `식별 이력` 탭: 음악 인식 성공(곡명/아티스트) 및 미인식(음악 없음/실패) 로그만 표시.
+  - `작동 로그` 탭: 서비스 시작/종료, 인식 주기, 텔레그램 큐, 자동복구 등 앱 시스템 작동 로그만 표시.
+  - 작동 로그는 step 코드 대신 한글 레이블로 표시 (예: `CYCLE_START` → "인식 주기 시작").
+- **Shazam 인식 완료 후 SoundLog 앱으로 자동 복귀**:
+  - 기존: 인식 완료 시 홈 화면으로 이동 (`GLOBAL_ACTION_HOME`).
+  - 변경: 인식 완료 시 SoundLog 앱으로 즉시 복귀 (`FLAG_ACTIVITY_SINGLE_TOP`).
+  - 실패 시 홈 화면 fallback 유지.
+- **DB 쿼리 최적화**:
+  - `getSongRecognitionLogsFlow()`: 음악 식별 관련 step 필터 쿼리 추가.
+  - `getSystemLogsFlow()`: 시스템 작동 step 필터 쿼리 추가.
+
 ## [v1.0.15] - 2026-08-08
 
 ### 🔧 빌드 수정 릴리즈 (Release v1.0.15)

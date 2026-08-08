@@ -28,6 +28,14 @@ interface ExecutionLogDao {
     @Query("SELECT * FROM execution_logs ORDER BY timestamp DESC LIMIT :limit")
     fun getRecentLogsFlow(limit: Int = 1000): Flow<List<ExecutionLogEntity>>
 
+    // 음악 식별 관련 로그만 (SUCCESS, NO_MATCH, FAILURE, DUPLICATE_SKIP)
+    @Query("SELECT * FROM execution_logs WHERE step IN ('SUCCESS', 'NO_MATCH', 'FAILURE', 'DUPLICATE_SKIP') ORDER BY timestamp DESC LIMIT :limit")
+    fun getSongRecognitionLogsFlow(limit: Int = 1000): Flow<List<ExecutionLogEntity>>
+
+    // 앱 시스템 작동 로그만 (SERVICE_START, SERVICE_STOP, CYCLE_START, CYCLE_END, TELEGRAM_QUEUE, WATCHDOG_RECOVERY 등)
+    @Query("SELECT * FROM execution_logs WHERE step NOT IN ('SUCCESS', 'NO_MATCH', 'FAILURE', 'DUPLICATE_SKIP') ORDER BY timestamp DESC LIMIT :limit")
+    fun getSystemLogsFlow(limit: Int = 1000): Flow<List<ExecutionLogEntity>>
+
     @Query("DELETE FROM execution_logs WHERE id NOT IN (SELECT id FROM execution_logs ORDER BY timestamp DESC LIMIT :maxCount)")
     suspend fun pruneOldLogs(maxCount: Int = 1000)
 

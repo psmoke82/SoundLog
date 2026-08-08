@@ -5,6 +5,7 @@ import android.content.Intent
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import com.soundlog.app.automation.ShazamNodeFinder
+import com.soundlog.app.ui.MainActivity
 import com.soundlog.app.util.AppChecklistHelper
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -47,19 +48,24 @@ class ShazamAccessibilityService : AccessibilityService() {
                 val callback = activeCallback
                 if (callback != null && isMonitoringActive) {
                     isMonitoringActive = false
-                    minimizeShazamApp()
+                    returnToSoundLog()
                     callback(result)
                 }
             }
         }
     }
 
-    fun minimizeShazamApp() {
+    fun returnToSoundLog() {
         try {
-            val success = performGlobalAction(GLOBAL_ACTION_HOME)
-            Log.i(TAG, "Minimizing Shazam app (GLOBAL_ACTION_HOME) -> Success: $success")
+            val intent = Intent(this, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            }
+            startActivity(intent)
+            Log.i(TAG, "Returning to SoundLog app after Shazam recognition")
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to minimize Shazam app", e)
+            Log.e(TAG, "Failed to return to SoundLog", e)
+            // fallback: 홈 화면으로
+            try { performGlobalAction(GLOBAL_ACTION_HOME) } catch (_: Exception) {}
         }
     }
 
@@ -148,7 +154,7 @@ class ShazamAccessibilityService : AccessibilityService() {
 
             if (isMonitoringActive) {
                 isMonitoringActive = false
-                minimizeShazamApp()
+                returnToSoundLog()
                 val res = finalResult ?: ShazamNodeFinder.RecognitionResult(false, errorMessage = "동적 타임아웃(${maxTimeoutSeconds}s) 초과 - 인식 실패")
                 onResult(res)
             }

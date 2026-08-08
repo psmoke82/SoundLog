@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -67,12 +68,18 @@ import java.util.Locale
 fun LogsScreen() {
     val app = SoundLogApp.instance
     var selectedTabIndex by remember { mutableStateOf(0) }
-    val tabs = listOf("식별 이력 (음악 식별 로그)", "작동 로그 (앱 시스템 작동)")
+    val tabs = listOf("식별 이력", "작동 로그")
 
+    // 음악 식별 결과 (SongResultEntity) - 성공/실패 모두 포함
     val songs by app.database.songResultDao().getAllSongsFlow()
         .collectAsState(initial = emptyList())
 
-    val logs by app.database.executionLogDao().getRecentLogsFlow(limit = 1000)
+    // 식별 이력 중 실패 로그 (NO_MATCH, FAILURE) - SongResultEntity에 없는 실패 케이스용
+    val recognitionLogs by app.database.executionLogDao().getSongRecognitionLogsFlow(limit = 1000)
+        .collectAsState(initial = emptyList())
+
+    // 앱 작동 로그 (시스템 로그만)
+    val systemLogs by app.database.executionLogDao().getSystemLogsFlow(limit = 1000)
         .collectAsState(initial = emptyList())
 
     Column(
@@ -120,28 +127,36 @@ fun LogsScreen() {
         Spacer(modifier = Modifier.height(14.dp))
 
         when (selectedTabIndex) {
-            0 -> SongHistoryList(songs = songs)
-            1 -> ExecutionLogList(logs = logs)
+            0 -> SongHistoryList(songs = songs, recognitionLogs = recognitionLogs)
+            1 -> SystemLogList(logs = systemLogs)
         }
     }
 }
 
+/**
+ * 식별 이력 탭: SongResultEntity (성공/실패 음악) + NO_MATCH/FAILURE 로그
+ * - SongResultEntity: 실제로 곡명/아티스트가 인식된 경우 (성공 or 텔레그램 실패)
+ * - recognitionLogs: 음악 미인식 (NO_MATCH, FAILURE) 등
+ */
 @Composable
-fun SongHistoryList(songs: List<SongResultEntity>) {
+fun SongHistoryList(songs: List<SongResultEntity>, recognitionLogs: List<ExecutionLogEntity>) {
     var searchQuery by remember { mutableStateOf("") }
 
+    // NO_MATCH/FAILURE 로그 중 SongResultEntity에 해당하지 않는 순수 실패 건만 분리
+    val noMatchLogs = remember(recognitionLogs) {
+        recognitionLogs.filter { it.step == "NO_MATCH" || it.step == "FAILURE" }
+    }
+
     val filteredSongs = remember(songs, searchQuery) {
-        if (searchQuery.isBlank()) {
-            songs
-        } else {
-            songs.filter { song ->
-                song.title.contains(searchQuery, ignoreCase = true) ||
-                song.artist.contains(searchQuery, ignoreCase = true)
-            }
+        if (searchQuery.isBlank()) songs
+        else songs.filter { song ->
+            song.title.contains(searchQuery, ignoreCase = true) ||
+            song.artist.contains(searchQuery, ignoreCase = true)
         }
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
+        // 검색창 (SongResultEntity 대상)
         OutlinedTextField(
             value = searchQuery,
             onValueChange = { searchQuery = it },
@@ -172,20 +187,30 @@ fun SongHistoryList(songs: List<SongResultEntity>) {
             shape = RoundedCornerShape(12.dp)
         )
 
-        if (filteredSongs.isEmpty()) {
+        if (filteredSongs.isEmpty() && noMatchLogs.isEmpty()) {
             Box(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = if (searchQuery.isBlank()) "아직 저장된 식별 곡 이력이 없습니다." else "검색 결과가 없습니다.",
+                    text = if (searchQuery.isBlank()) "아직 저장된 식별 이력이 없습니다." else "검색 결과가 없습니다.",
                     color = TextMuted
                 )
             }
         } else {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(filteredSongs) { song ->
-                    SongHistoryItemCard(song = song)
+                // 인식 성공/텔레그램 상태 카드
+                if (filteredSongs.isNotEmpty()) {
+                    items(filteredSongs) { song ->
+                        SongHistoryItemCard(song = song)
+                    }
+                }
+
+                // 검색어 없을 때만 NO_MATCH/FAILURE 로그 표시
+                if (searchQuery.isBlank() && noMatchLogs.isNotEmpty()) {
+                    items(noMatchLogs) { log ->
+                        NoMatchLogCard(log = log)
+                    }
                 }
             }
         }
@@ -290,14 +315,63 @@ fun SongHistoryItemCard(song: SongResultEntity) {
     }
 }
 
+/** 음악 미인식(NO_MATCH) / 실패(FAILURE) 로그 카드 */
 @Composable
-fun ExecutionLogList(logs: List<ExecutionLogEntity>) {
+fun NoMatchLogCard(log: ExecutionLogEntity) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = SurfaceDark),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, CardBorder, RoundedCornerShape(10.dp))
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Default.Info,
+                contentDescription = null,
+                tint = if (log.step == "FAILURE") AccentRed else AccentYellow,
+                modifier = Modifier.size(18.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = if (log.step == "NO_MATCH") "음악 미인식" else "인식 실패",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp,
+                        color = if (log.step == "FAILURE") AccentRed else AccentYellow
+                    )
+                    Text(
+                        text = formatLogTime(log.timestamp),
+                        fontSize = 11.sp,
+                        color = TextMuted
+                    )
+                }
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = log.message,
+                    fontSize = 12.sp,
+                    color = TextSecondary
+                )
+            }
+        }
+    }
+}
+
+/** 작동 로그 탭: 앱 시스템 작동 관련 로그만 */
+@Composable
+fun SystemLogList(logs: List<ExecutionLogEntity>) {
     if (logs.isEmpty()) {
         Box(
             modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center
         ) {
-            Text("아직 기록된 실행 스텝 로그가 없습니다.", color = TextMuted)
+            Text("아직 기록된 앱 작동 로그가 없습니다.", color = TextMuted)
         }
     } else {
         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -314,13 +388,13 @@ fun ExecutionLogList(logs: List<ExecutionLogEntity>) {
                     ) {
                         val icon = when {
                             log.isSuccess -> Icons.Default.CheckCircle
-                            log.step == "NO_MATCH" || log.step == "DUPLICATE_SKIP" -> Icons.Default.Info
-                            else -> Icons.Default.Error
+                            log.step == "WATCHDOG_RECOVERY" -> Icons.Default.Error
+                            else -> Icons.Default.Terminal
                         }
                         val tint = when {
                             log.isSuccess -> AccentGreen
-                            log.step == "NO_MATCH" || log.step == "DUPLICATE_SKIP" -> AccentYellow
-                            else -> AccentRed
+                            log.step == "WATCHDOG_RECOVERY" -> AccentRed
+                            else -> AccentYellow
                         }
 
                         Icon(
@@ -338,7 +412,7 @@ fun ExecutionLogList(logs: List<ExecutionLogEntity>) {
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Text(
-                                    text = log.step,
+                                    text = stepLabel(log.step),
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 13.sp,
                                     color = tint
@@ -361,6 +435,18 @@ fun ExecutionLogList(logs: List<ExecutionLogEntity>) {
             }
         }
     }
+}
+
+/** Step 코드를 사람이 읽기 좋은 한글 레이블로 변환 */
+private fun stepLabel(step: String): String = when (step) {
+    "SERVICE_START" -> "서비스 시작"
+    "SERVICE_STOP"  -> "서비스 종료"
+    "CYCLE_START"   -> "인식 주기 시작"
+    "CYCLE_END"     -> "인식 주기 완료"
+    "TELEGRAM_QUEUE" -> "텔레그램 큐"
+    "WATCHDOG_RECOVERY" -> "자동 복구"
+    "DUPLICATE_SKIP" -> "중복 스킵"
+    else -> step
 }
 
 private fun formatLogTime(timestamp: Long): String {
