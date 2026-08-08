@@ -23,11 +23,14 @@ class SoundLogApp : Application() {
         super.onCreate()
         instance = this
 
-        database = AppDatabase.getInstance(this)
-        settingsRepository = EncryptedSettingsRepository(this)
-        telegramQueueManager = TelegramQueueManager(database.songResultDao(), settingsRepository)
-
-        createNotificationChannels()
+        try {
+            database = AppDatabase.getInstance(this)
+            settingsRepository = EncryptedSettingsRepository(this)
+            telegramQueueManager = TelegramQueueManager(database.songResultDao(), settingsRepository)
+            createNotificationChannels()
+        } catch (e: Exception) {
+            android.util.Log.e("SoundLogApp", "Critical error in Application onCreate: ${e.message}", e)
+        }
     }
 
     private fun createNotificationChannels() {
