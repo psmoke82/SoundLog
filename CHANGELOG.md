@@ -1,5 +1,14 @@
 # Changelog - SoundLog
 
+## [v1.0.15] - 2026-08-08
+
+### 🔧 빌드 수정 릴리즈 (Release v1.0.15)
+
+- **컴파일 오류 수정**:
+  - `TelegramQueueManager`: `song.timestamp` → `song.detectedAt` 프로퍼티 참조 수정.
+  - `DashboardScreen`: `LocalLifecycleOwner` import 경로 수정 (`androidx.compose.ui.platform`).
+  - `SettingsScreen`: `EncryptedSettingsRepository` import 누락 추가.
+
 ## [v1.0.14] - 2026-08-08
 
 ### 🚀 텔레그램 포맷 커스텀 & 체크리스트 자동 갱신 릴리즈 (Release v1.0.14)
