@@ -51,10 +51,23 @@ class EncryptedSettingsRepository(context: Context) {
         get() = sharedPreferences.getBoolean(KEY_SERVICE_ENABLED, true)
         set(value) = sharedPreferences.edit().putBoolean(KEY_SERVICE_ENABLED, value).apply()
 
+    var telegramMessageTemplate: String
+        get() = sharedPreferences.getString(KEY_TELEGRAM_MESSAGE_TEMPLATE, DEFAULT_TELEGRAM_MESSAGE_TEMPLATE)
+            ?: DEFAULT_TELEGRAM_MESSAGE_TEMPLATE
+        set(value) = sharedPreferences.edit().putString(KEY_TELEGRAM_MESSAGE_TEMPLATE, value).apply()
+
     companion object {
+        const val DEFAULT_TELEGRAM_MESSAGE_TEMPLATE = """🎵 <b>[지금 나오는 음악]</b>
+
+🎤 <b>아티스트:</b> {artist}
+🎼 <b>곡명:</b> {title}
+
+#SoundLog #alookat"""
+
         private const val PREF_NAME = "soundlog_encrypted_prefs"
         private const val KEY_BOT_TOKEN = "telegram_bot_token"
         private const val KEY_CHAT_ID = "telegram_chat_id"
+        private const val KEY_TELEGRAM_MESSAGE_TEMPLATE = "telegram_message_template"
         private const val KEY_INTERVAL_MIN = "recognition_interval_min"
         private const val KEY_MAX_TIMEOUT_SEC = "max_timeout_sec"
         private const val KEY_DEDUP_WINDOW_MIN = "dedup_window_min"

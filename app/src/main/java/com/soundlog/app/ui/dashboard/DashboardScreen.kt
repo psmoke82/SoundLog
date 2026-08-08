@@ -126,13 +126,13 @@ fun DashboardScreen(onNavigateToLogs: () -> Unit = {}) {
         modifier = Modifier
             .fillMaxSize()
             .background(DarkBackground)
-            .padding(16.dp)
-            .verticalScroll(scrollState),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Header with Right Top Toggle
+        // Fixed Top Header
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(DarkBackground)
+                .padding(16.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -150,48 +150,35 @@ fun DashboardScreen(onNavigateToLogs: () -> Unit = {}) {
                 )
             }
 
-            // Top Right Monitoring Power Toggle Button
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                modifier = Modifier
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(SurfaceDark)
-                    .border(1.dp, CardBorder, RoundedCornerShape(20.dp))
-                    .padding(horizontal = 8.dp, vertical = 4.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(10.dp)
-                        .clip(CircleShape)
-                        .background(if (serviceEnabled && isAccessibilityActive) AccentGreen else AccentRed)
+            // Top Right Monitoring Power Switch
+            Switch(
+                checked = serviceEnabled,
+                onCheckedChange = { enabled ->
+                    serviceEnabled = enabled
+                    settings.isServiceEnabled = enabled
+                    if (enabled) {
+                        ForegroundSchedulerService.startService(context)
+                        Toast.makeText(context, "모니터링 작동 (ON)", Toast.LENGTH_SHORT).show()
+                    } else {
+                        ForegroundSchedulerService.stopService(context)
+                        Toast.makeText(context, "모니터링 중지 (OFF)", Toast.LENGTH_SHORT).show()
+                    }
+                },
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = PrimaryNeon,
+                    checkedTrackColor = SurfaceVariantDark
                 )
-                Text(
-                    text = if (serviceEnabled && isAccessibilityActive) "ON" else "OFF",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 12.sp,
-                    color = if (serviceEnabled && isAccessibilityActive) AccentGreen else TextMuted
-                )
-                Switch(
-                    checked = serviceEnabled,
-                    onCheckedChange = { enabled ->
-                        serviceEnabled = enabled
-                        settings.isServiceEnabled = enabled
-                        if (enabled) {
-                            ForegroundSchedulerService.startService(context)
-                            Toast.makeText(context, "모니터링 작동 (ON)", Toast.LENGTH_SHORT).show()
-                        } else {
-                            ForegroundSchedulerService.stopService(context)
-                            Toast.makeText(context, "모니터링 중지 (OFF)", Toast.LENGTH_SHORT).show()
-                        }
-                    },
-                    colors = SwitchDefaults.colors(
-                        checkedThumbColor = PrimaryNeon,
-                        checkedTrackColor = SurfaceVariantDark
-                    )
-                )
-            }
+            )
         }
+
+        // Scrollable Body
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 16.dp)
+                .verticalScroll(scrollState),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
 
         // Checklist Card (체크리스트)
         Card(
@@ -530,6 +517,7 @@ fun ChecklistItemRow(
                     )
                 }
             }
+            Spacer(modifier = Modifier.height(16.dp))
         }
     }
 }

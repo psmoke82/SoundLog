@@ -1,5 +1,23 @@
 # Changelog - SoundLog
 
+## [v1.0.14] - 2026-08-08
+
+### 🚀 앱 아이콘 리뉴얼, 텔레그램 메시지 포맷 커스텀 및 상단 헤더 고정 (Release v1.0.14)
+
+- **앱 아이콘 래스터/적응형 리소스 구조 갱신 (PNG & Adaptive Icon)**:
+  - Vector XML 방식 깨짐 문제를 해결하고 Android 해상도 규격별 (`mipmap-mdpi/hdpi/xhdpi/xxhdpi/xxxhdpi`) PNG 리소스 및 API 26+ Adaptive Icon 구조 (`ic_launcher.xml`, `ic_launcher_round.xml`) 적용.
+
+- **메인 화면 우측 상단 모니터링 토글 단순화**:
+  - 이중 감싸기 테두리 박스, ON/OFF 글자, 상태 표시등 제거 및 직관적인 Switch 컴포넌트 단독 배치.
+
+- **텔레그램 메시지 포맷 커스텀 설정 & 실시간 시뮬레이션 지원**:
+  - 설정 탭의 API 설정 하단에 메시지 템플릿 에디터 및 치환 태그 원터치 버튼 (`{title}`, `{artist}`, `{date}`, `{time}`, `{datetime}`) 추가.
+  - 텔레그램 말풍선 디자인의 실시간 미리보기 카드(Live Simulation Preview) 제공.
+  - "기본 포맷 복원" 지원 및 EncryptedSharedPreferences 연동.
+
+- **대시보드 & 설정 페이지 상단 헤더 고정 (Sticky Header)**:
+  - 스크롤을 끝까지 내리더라도 상단 제목 헤더가 고정(Sticky Header)되어 편리하게 접근 가능.
+
 ## [v1.0.11] - 2026-08-08
 
 ### 🚀 major UI/UX 및 기능 통합 개선 릴리즈 (Release v1.0.11)

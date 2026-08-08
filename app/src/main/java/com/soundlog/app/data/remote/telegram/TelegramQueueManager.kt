@@ -163,14 +163,8 @@ class TelegramQueueManager(
     }
 
     private fun formatSongMessage(song: SongResultEntity): String {
-        return """
-            🎵 <b>[지금 나오는 음악]</b>
-            
-            🎤 <b>아티스트:</b> ${escapeHtml(song.artist)}
-            🎼 <b>곡명:</b> ${escapeHtml(song.title)}
-            
-            #SoundLog #alookat
-        """.trimIndent()
+        val template = settingsRepository.telegramMessageTemplate
+        return com.soundlog.app.util.TelegramMessageFormatter.formatSongMessage(template, song)
     }
 
     private fun escapeHtml(text: String): String {

@@ -62,6 +62,7 @@ fun SettingsScreen() {
 
     var botToken by remember { mutableStateOf(settings.telegramBotToken) }
     var chatId by remember { mutableStateOf(settings.telegramChatId) }
+    var messageTemplate by remember { mutableStateOf(settings.telegramMessageTemplate) }
     var intervalStr by remember { mutableStateOf(settings.recognitionIntervalMinutes.toString()) }
     var timeoutStr by remember { mutableStateOf(settings.maxTimeoutSeconds.toString()) }
     var dedupStr by remember { mutableStateOf(settings.deduplicationWindowMinutes.toString()) }
@@ -74,16 +75,30 @@ fun SettingsScreen() {
         modifier = Modifier
             .fillMaxSize()
             .background(DarkBackground)
-            .padding(16.dp)
-            .verticalScroll(scrollState),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Text(
-            text = "시스템 및 텔레그램 설정",
-            fontSize = 24.sp,
-            fontWeight = FontWeight.Bold,
-            color = TextPrimary
-        )
+        // Fixed Top Header
+        androidx.compose.foundation.layout.Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(DarkBackground)
+                .padding(16.dp)
+        ) {
+            Text(
+                text = "시스템 및 텔레그램 설정",
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold,
+                color = TextPrimary
+            )
+        }
+
+        // Scrollable Body
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 16.dp)
+                .verticalScroll(scrollState),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
 
         // Telegram Credentials Card
         Card(
@@ -137,6 +152,128 @@ fun SettingsScreen() {
                     fontSize = 11.sp,
                     color = TextSecondary
                 )
+
+                Spacer(modifier = Modifier.height(16.dp))
+                Divider(color = CardBorder, thickness = 1.dp)
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Telegram Message Format Editor & Simulation
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "📱 텔레그램 메시지 포맷 설정",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        color = TextPrimary
+                    )
+                    TextButton(
+                        onClick = {
+                            messageTemplate = EncryptedSettingsRepository.DEFAULT_TELEGRAM_MESSAGE_TEMPLATE
+                        }
+                    ) {
+                        Text("기본 포맷 복원", fontSize = 12.sp, color = PrimaryNeon)
+                    }
+                }
+
+                Text(
+                    text = "아래 치환 태그 칩을 누르면 에디터에 자동 입력됩니다.",
+                    fontSize = 11.sp,
+                    color = TextSecondary
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Tag Chips Group
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    val tags = listOf(
+                        "곡명" to "{title}",
+                        "아티스트" to "{artist}",
+                        "날짜" to "{date}",
+                        "시간" to "{time}",
+                        "일시" to "{datetime}"
+                    )
+                    tags.forEach { (label, tag) ->
+                        Button(
+                            onClick = {
+                                messageTemplate += " $tag"
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = SurfaceVariantDark),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.height(32.dp),
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                        ) {
+                            Text(
+                                text = "+ $label",
+                                fontSize = 11.sp,
+                                color = PrimaryNeon,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                OutlinedTextField(
+                    value = messageTemplate,
+                    onValueChange = { messageTemplate = it },
+                    label = { Text("메시지 포맷 템플릿") },
+                    placeholder = { Text("보낼 메시지 양식을 입력하세요...") },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 4,
+                    maxLines = 8,
+                    colors = customTextFieldColors()
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Live Simulation Preview Box
+                Text(
+                    text = "👁️ 실시간 전송 시뮬레이션 미리보기",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = TextSecondary
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF1E2638)),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(1.dp, Color(0xFF2B3752), RoundedCornerShape(12.dp))
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Send,
+                                contentDescription = null,
+                                tint = Color(0xFF29B6F6),
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Telegram Bot (Preview)",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF29B6F6)
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = com.soundlog.app.util.TelegramMessageFormatter.formatSimulation(messageTemplate),
+                            fontSize = 13.sp,
+                            color = Color.White,
+                            lineHeight = 18.sp
+                        )
+                    }
+                }
             }
         }
 
@@ -233,6 +370,7 @@ fun SettingsScreen() {
 
                 settings.telegramBotToken = botToken.trim()
                 settings.telegramChatId = chatId.trim()
+                settings.telegramMessageTemplate = messageTemplate.ifBlank { EncryptedSettingsRepository.DEFAULT_TELEGRAM_MESSAGE_TEMPLATE }
                 settings.recognitionIntervalMinutes = interval.coerceAtLeast(1)
                 settings.maxTimeoutSeconds = timeout.coerceAtLeast(5)
                 settings.deduplicationWindowMinutes = dedup.coerceAtLeast(1)
@@ -254,6 +392,8 @@ fun SettingsScreen() {
             Spacer(modifier = Modifier.width(8.dp))
             Text("설정값 저장하기", color = Color.Black, fontWeight = FontWeight.Bold)
         }
+
+        Spacer(modifier = Modifier.height(16.dp))
     }
 }
 
