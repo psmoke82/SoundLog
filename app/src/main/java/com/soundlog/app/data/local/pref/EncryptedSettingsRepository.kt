@@ -19,6 +19,16 @@ class EncryptedSettingsRepository(context: Context) {
         private const val KEY_MAX_RETRY = "max_retry"
         private const val KEY_MAX_SONG_LOG_COUNT = "max_song_log_count"
         private const val KEY_SERVICE_ENABLED = "service_enabled"
+        private const val KEY_MESSAGE_FORMAT = "telegram_message_format"
+
+        val DEFAULT_TELEGRAM_FORMAT = """
+            🎵 <b>[지금 나오는 음악]</b>
+
+            🎤 <b>아티스트:</b> {artist}
+            🎼 <b>곡명:</b> {title}
+
+            #SoundLog #alookat
+        """.trimIndent()
 
         private fun createSafeSharedPreferences(context: Context): SharedPreferences {
             return try {
@@ -84,4 +94,8 @@ class EncryptedSettingsRepository(context: Context) {
     var isServiceEnabled: Boolean
         get() = sharedPreferences.getBoolean(KEY_SERVICE_ENABLED, true)
         set(value) = sharedPreferences.edit().putBoolean(KEY_SERVICE_ENABLED, value).apply()
+
+    var telegramMessageFormat: String
+        get() = sharedPreferences.getString(KEY_MESSAGE_FORMAT, DEFAULT_TELEGRAM_FORMAT) ?: DEFAULT_TELEGRAM_FORMAT
+        set(value) = sharedPreferences.edit().putString(KEY_MESSAGE_FORMAT, value).apply()
 }

@@ -7,6 +7,8 @@ import android.graphics.Rect
 import android.util.Log
 import android.view.accessibility.AccessibilityNodeInfo
 
+import com.soundlog.app.util.AppChecklistHelper
+
 object ShazamNodeFinder {
 
     private const val TAG = "ShazamNodeFinder"
@@ -49,11 +51,23 @@ object ShazamNodeFinder {
         "com.shazam.android:id/heading_subtitle"
     )
 
+    fun isShazamPackage(rootNode: AccessibilityNodeInfo?): Boolean {
+        if (rootNode == null) return false
+        val pkg = rootNode.packageName?.toString() ?: return false
+        return pkg == AppChecklistHelper.SHAZAM_PACKAGE_NAME
+    }
+
     /**
      * 5단계 Fallback 기법을 사용하여 Shazam 버튼을 찾아서 클릭합니다.
      */
     fun findAndClickShazamButton(rootNode: AccessibilityNodeInfo?, service: AccessibilityService): Boolean {
         if (rootNode != null) {
+            val pkgName = rootNode.packageName?.toString()
+            if (pkgName != AppChecklistHelper.SHAZAM_PACKAGE_NAME) {
+                Log.w(TAG, "Skipping Shazam button search: Active window is '$pkgName', not Shazam")
+                return false
+            }
+
             // 1단계: Resource View ID 목록으로 검색
             for (id in SHAZAM_BUTTON_IDS) {
                 val nodes = rootNode.findAccessibilityNodeInfosByViewId(id)
@@ -108,6 +122,11 @@ object ShazamNodeFinder {
      */
     fun extractRecognitionResult(rootNode: AccessibilityNodeInfo?): RecognitionResult {
         if (rootNode == null) return RecognitionResult(false, errorMessage = "Root node is null")
+
+        val pkgName = rootNode.packageName?.toString()
+        if (pkgName != AppChecklistHelper.SHAZAM_PACKAGE_NAME) {
+            return RecognitionResult(false, errorMessage = "Active window is '$pkgName', not Shazam package")
+        }
 
         // 1. 인식 실패 화면 확인
         if (isNoMatchScreen(rootNode)) {

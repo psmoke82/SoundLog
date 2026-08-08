@@ -234,7 +234,7 @@ class ForegroundSchedulerService : Service() {
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("SoundLog 24/7 상시 음악 식별")
             .setContentText(statusText)
-            .setSmallIcon(R.drawable.ic_launcher_icon)
+            .setSmallIcon(R.mipmap.ic_launcher)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
             .build()

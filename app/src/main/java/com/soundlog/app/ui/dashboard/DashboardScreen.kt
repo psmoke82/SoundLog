@@ -48,6 +48,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -55,6 +56,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -107,12 +111,25 @@ fun DashboardScreen(onNavigateToLogs: () -> Unit = {}) {
     val initialAllPassed = remember(checklistItems) { checklistItems.all { it.isPassed } }
     var isChecklistExpanded by remember { mutableStateOf(!initialAllPassed) }
 
-    // Re-check permissions on resume/re-render
-    LaunchedEffect(Unit) {
+    fun refreshChecklist() {
         val updated = AppChecklistHelper.getChecklist(context)
         checklistItems = updated
         if (updated.all { it.isPassed }) {
             isChecklistExpanded = false
+        }
+    }
+
+    // Auto re-check permissions when returning to app (ON_RESUME)
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                refreshChecklist()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
         }
     }
 
@@ -151,46 +168,24 @@ fun DashboardScreen(onNavigateToLogs: () -> Unit = {}) {
             }
 
             // Top Right Monitoring Power Toggle Button
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                modifier = Modifier
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(SurfaceDark)
-                    .border(1.dp, CardBorder, RoundedCornerShape(20.dp))
-                    .padding(horizontal = 8.dp, vertical = 4.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(10.dp)
-                        .clip(CircleShape)
-                        .background(if (serviceEnabled && isAccessibilityActive) AccentGreen else AccentRed)
+            Switch(
+                checked = serviceEnabled,
+                onCheckedChange = { enabled ->
+                    serviceEnabled = enabled
+                    settings.isServiceEnabled = enabled
+                    if (enabled) {
+                        ForegroundSchedulerService.startService(context)
+                        Toast.makeText(context, "모니터링 작동 (ON)", Toast.LENGTH_SHORT).show()
+                    } else {
+                        ForegroundSchedulerService.stopService(context)
+                        Toast.makeText(context, "모니터링 중지 (OFF)", Toast.LENGTH_SHORT).show()
+                    }
+                },
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = PrimaryNeon,
+                    checkedTrackColor = SurfaceVariantDark
                 )
-                Text(
-                    text = if (serviceEnabled && isAccessibilityActive) "ON" else "OFF",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 12.sp,
-                    color = if (serviceEnabled && isAccessibilityActive) AccentGreen else TextMuted
-                )
-                Switch(
-                    checked = serviceEnabled,
-                    onCheckedChange = { enabled ->
-                        serviceEnabled = enabled
-                        settings.isServiceEnabled = enabled
-                        if (enabled) {
-                            ForegroundSchedulerService.startService(context)
-                            Toast.makeText(context, "모니터링 작동 (ON)", Toast.LENGTH_SHORT).show()
-                        } else {
-                            ForegroundSchedulerService.stopService(context)
-                            Toast.makeText(context, "모니터링 중지 (OFF)", Toast.LENGTH_SHORT).show()
-                        }
-                    },
-                    colors = SwitchDefaults.colors(
-                        checkedThumbColor = PrimaryNeon,
-                        checkedTrackColor = SurfaceVariantDark
-                    )
-                )
-            }
+            )
         }
 
         // Checklist Card (체크리스트)
@@ -206,13 +201,16 @@ fun DashboardScreen(onNavigateToLogs: () -> Unit = {}) {
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { isChecklistExpanded = !isChecklistExpanded },
+                    modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable { isChecklistExpanded = !isChecklistExpanded }
+                    ) {
                         Icon(
                             imageVector = Icons.Default.FactCheck,
                             contentDescription = null,
@@ -236,11 +234,34 @@ fun DashboardScreen(onNavigateToLogs: () -> Unit = {}) {
                         }
                     }
 
-                    Icon(
-                        imageVector = if (isChecklistExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                        contentDescription = null,
-                        tint = TextSecondary
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(
+                            onClick = {
+                                refreshChecklist()
+                                Toast.makeText(context, "체크리스트 상태가 갱신되었습니다.", Toast.LENGTH_SHORT).show()
+                            },
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = "체크리스트 새로고침",
+                                tint = PrimaryNeon,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+
+                        IconButton(
+                            onClick = { isChecklistExpanded = !isChecklistExpanded },
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (isChecklistExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                contentDescription = null,
+                                tint = TextSecondary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
                 }
 
                 AnimatedVisibility(visible = isChecklistExpanded) {

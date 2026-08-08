@@ -12,11 +12,14 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Settings
@@ -62,6 +65,7 @@ fun SettingsScreen() {
 
     var botToken by remember { mutableStateOf(settings.telegramBotToken) }
     var chatId by remember { mutableStateOf(settings.telegramChatId) }
+    var messageFormat by remember { mutableStateOf(settings.telegramMessageFormat) }
     var intervalStr by remember { mutableStateOf(settings.recognitionIntervalMinutes.toString()) }
     var timeoutStr by remember { mutableStateOf(settings.maxTimeoutSeconds.toString()) }
     var dedupStr by remember { mutableStateOf(settings.deduplicationWindowMinutes.toString()) }
@@ -137,6 +141,135 @@ fun SettingsScreen() {
                     fontSize = 11.sp,
                     color = TextSecondary
                 )
+            }
+        }
+
+        // Telegram Message Format Card
+        Card(
+            colors = CardDefaults.cardColors(containerColor = SurfaceDark),
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(1.dp, CardBorder, RoundedCornerShape(16.dp))
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(imageVector = Icons.Default.Edit, contentDescription = null, tint = PrimaryNeon)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "텔레그램 메시지 포맷 설정",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp,
+                            color = TextPrimary
+                        )
+                    }
+
+                    Button(
+                        onClick = {
+                            messageFormat = EncryptedSettingsRepository.DEFAULT_TELEGRAM_FORMAT
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = SurfaceVariantDark),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.height(32.dp)
+                    ) {
+                        Icon(imageVector = Icons.Default.Refresh, contentDescription = null, tint = PrimaryNeon, modifier = Modifier.height(14.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("기본값 복원", fontSize = 11.sp, color = TextPrimary)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = "빠른 치환 태그 삽입",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = TextSecondary
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    val tagList = listOf(
+                        "+ 곡명" to "{title}",
+                        "+ 아티스트" to "{artist}",
+                        "+ 날짜" to "{date}",
+                        "+ 시간" to "{time}",
+                        "+ 일시" to "{datetime}"
+                    )
+                    for ((label, tag) in tagList) {
+                        Button(
+                            onClick = {
+                                messageFormat = if (messageFormat.endsWith(" ") || messageFormat.endsWith("\n") || messageFormat.isEmpty()) {
+                                    messageFormat + tag
+                                } else {
+                                    "$messageFormat $tag"
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = SurfaceVariantDark),
+                            shape = RoundedCornerShape(16.dp),
+                            modifier = Modifier.height(30.dp)
+                        ) {
+                            Text(label, fontSize = 11.sp, color = PrimaryNeon, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                OutlinedTextField(
+                    value = messageFormat,
+                    onValueChange = { messageFormat = it },
+                    label = { Text("메시지 포맷 템플릿") },
+                    placeholder = { Text("예: 🎵 {artist} - {title}") },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 4,
+                    maxLines = 8,
+                    colors = customTextFieldColors()
+                )
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                Text(
+                    text = "📱 텔레그램 전송 시뮬레이션 샘플",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = PrimaryNeon
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+
+                val samplePreview = remember(messageFormat) {
+                    val formatted = com.soundlog.app.data.remote.telegram.TelegramQueueManager.formatTemplate(
+                        template = messageFormat,
+                        title = "Cruel Summer",
+                        artist = "Taylor Swift"
+                    )
+                    // HTML 태그 단순 제거 후 시뮬레이션 렌더링
+                    formatted.replace(Regex("<[^>]*>"), "")
+                }
+
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = SurfaceVariantDark),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(1.dp, CardBorder, RoundedCornerShape(12.dp))
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text(
+                            text = samplePreview.ifBlank { "(메시지 포맷이 비어있습니다)" },
+                            fontSize = 13.sp,
+                            color = TextPrimary,
+                            lineHeight = 18.sp
+                        )
+                    }
+                }
             }
         }
 
@@ -233,6 +366,7 @@ fun SettingsScreen() {
 
                 settings.telegramBotToken = botToken.trim()
                 settings.telegramChatId = chatId.trim()
+                settings.telegramMessageFormat = messageFormat.ifBlank { com.soundlog.app.data.local.pref.EncryptedSettingsRepository.DEFAULT_TELEGRAM_FORMAT }
                 settings.recognitionIntervalMinutes = interval.coerceAtLeast(1)
                 settings.maxTimeoutSeconds = timeout.coerceAtLeast(5)
                 settings.deduplicationWindowMinutes = dedup.coerceAtLeast(1)

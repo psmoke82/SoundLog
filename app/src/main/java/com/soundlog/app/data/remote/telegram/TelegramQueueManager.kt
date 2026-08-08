@@ -163,14 +163,12 @@ class TelegramQueueManager(
     }
 
     private fun formatSongMessage(song: SongResultEntity): String {
-        return """
-            🎵 <b>[지금 나오는 음악]</b>
-            
-            🎤 <b>아티스트:</b> ${escapeHtml(song.artist)}
-            🎼 <b>곡명:</b> ${escapeHtml(song.title)}
-            
-            #SoundLog #alookat
-        """.trimIndent()
+        return formatTemplate(
+            template = settingsRepository.telegramMessageFormat,
+            title = song.title,
+            artist = song.artist,
+            timestamp = song.timestamp
+        )
     }
 
     private fun escapeHtml(text: String): String {
@@ -179,12 +177,36 @@ class TelegramQueueManager(
             .replace(">", "&gt;")
     }
 
-    private fun formatTimestamp(timestamp: Long): String {
-        val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.KOREA)
-        return sdf.format(Date(timestamp))
-    }
-
     companion object {
         private const val TAG = "TelegramQueueManager"
+
+        fun formatTemplate(
+            template: String,
+            title: String,
+            artist: String,
+            timestamp: Long = System.currentTimeMillis()
+        ): String {
+            val fmt = if (template.isBlank()) EncryptedSettingsRepository.DEFAULT_TELEGRAM_FORMAT else template
+            val date = Date(timestamp)
+            val dateStr = SimpleDateFormat("yyyy-MM-dd", Locale.KOREA).format(date)
+            val timeStr = SimpleDateFormat("HH:mm:ss", Locale.KOREA).format(date)
+            val dateTimeStr = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.KOREA).format(date)
+
+            fun escape(text: String) = text.replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+
+            return fmt
+                .replace("{title}", escape(title))
+                .replace("{곡명}", escape(title))
+                .replace("{artist}", escape(artist))
+                .replace("{아티스트}", escape(artist))
+                .replace("{date}", dateStr)
+                .replace("{날짜}", dateStr)
+                .replace("{time}", timeStr)
+                .replace("{시간}", timeStr)
+                .replace("{datetime}", dateTimeStr)
+                .replace("{일시}", dateTimeStr)
+        }
     }
 }

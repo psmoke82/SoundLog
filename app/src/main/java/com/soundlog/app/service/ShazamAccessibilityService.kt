@@ -29,11 +29,18 @@ class ShazamAccessibilityService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (!isMonitoringActive || event == null) return
 
+        val eventPkg = event.packageName?.toString()
+        if (eventPkg != AppChecklistHelper.SHAZAM_PACKAGE_NAME) {
+            return
+        }
+
         val eventType = event.eventType
         if (eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
             eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
         ) {
             val rootNode = rootInActiveWindow ?: return
+            if (rootNode.packageName?.toString() != AppChecklistHelper.SHAZAM_PACKAGE_NAME) return
+
             val result = ShazamNodeFinder.extractRecognitionResult(rootNode)
             if (result.success || result.isNoMatch) {
                 Log.i(TAG, "Result captured via AccessibilityEvent! Result: $result")
@@ -125,12 +132,14 @@ class ShazamAccessibilityService : AccessibilityService() {
             withTimeoutOrNull(maxTimeoutMs) {
                 while (isMonitoringActive && System.currentTimeMillis() - startTime < maxTimeoutMs) {
                     val currentRoot = rootInActiveWindow
-                    val result = ShazamNodeFinder.extractRecognitionResult(currentRoot)
+                    if (currentRoot != null && currentRoot.packageName?.toString() == AppChecklistHelper.SHAZAM_PACKAGE_NAME) {
+                        val result = ShazamNodeFinder.extractRecognitionResult(currentRoot)
 
-                    if (result.success || result.isNoMatch) {
-                        finalResult = result
-                        Log.i(TAG, "Result detected dynamically via polling! Elapsed: ${System.currentTimeMillis() - startTime}ms")
-                        break
+                        if (result.success || result.isNoMatch) {
+                            finalResult = result
+                            Log.i(TAG, "Result detected dynamically via polling! Elapsed: ${System.currentTimeMillis() - startTime}ms")
+                            break
+                        }
                     }
 
                     delay(500)
