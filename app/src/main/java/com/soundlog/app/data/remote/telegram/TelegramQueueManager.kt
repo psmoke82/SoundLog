@@ -167,7 +167,7 @@ class TelegramQueueManager(
             template = settingsRepository.telegramMessageFormat,
             title = song.title,
             artist = song.artist,
-            timestamp = song.timestamp
+            timestamp = song.detectedAt
         )
     }
 

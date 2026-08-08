@@ -46,6 +46,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.soundlog.app.SoundLogApp
+import com.soundlog.app.data.local.pref.EncryptedSettingsRepository
 import com.soundlog.app.ui.theme.CardBorder
 import com.soundlog.app.ui.theme.DarkBackground
 import com.soundlog.app.ui.theme.PrimaryNeon
