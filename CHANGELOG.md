@@ -1,5 +1,15 @@
 # Changelog - SoundLog
 
+## [v1.0.20] - 2026-08-10
+
+### 🚀 고정 간격 스케줄링 & Shazam 인식 후 앱 완전 종료 릴리즈 (Release v1.0.20)
+
+- **고정 간격 스케줄링 적용 (Fixed-Rate Interval)**:
+  - 인식 소요시간(예: 10초)을 주기에 반영하여 소모된 시간을 차감한 남은 대기시간만 delay 함으로써, 밀림 없이 설정된 정시 주기마다(08:00, 08:01, 08:02...) 정확히 인식 수행.
+- **Shazam 인식 후 앱 삼중 완전 종료 (`closeShazamAndReturnToSoundLog`)**:
+  - 인식 완료(성공/미인식/타임아웃) 즉시 접근성 BACK 키, `ActivityManager.killBackgroundProcesses`, `am force-stop`을 실행하여 Shazam 프로세스 및 메모리를 완전 종료 후 SoundLog로 복귀.
+  - Shazam 앱 실행 Intent에 `FLAG_ACTIVITY_CLEAR_TASK`를 선언하여 매 주기마다 이전 잔존 화면 노드 없이 깨끗한 상태로 실행 보장.
+
 ## [v1.0.19] - 2026-08-10
 
 ### 🚀 Shazam 0.1초 조기 복귀 방지 & 수음 대기 보장 릴리즈 (Release v1.0.19)

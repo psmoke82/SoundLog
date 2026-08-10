@@ -119,6 +119,7 @@ class ForegroundSchedulerService : Service() {
             while (isActive && isLoopRunning) {
                 val settings = SoundLogApp.instance.settingsRepository
                 val intervalMinutes = settings.recognitionIntervalMinutes
+                val cycleStartTime = System.currentTimeMillis()
 
                 if (settings.isServiceEnabled) {
                     executeRecognitionCycle()
@@ -126,10 +127,13 @@ class ForegroundSchedulerService : Service() {
                     Log.d(TAG, "Service is currently disabled by user setting.")
                 }
 
-                // 지정된 주기(분) 만큼 대기 (최소 1분)
-                val waitTimeMs = (intervalMinutes.coerceAtLeast(1) * 60 * 1000L)
-                Log.d(TAG, "Scheduler waiting for next cycle: ${intervalMinutes}m (${waitTimeMs}ms)")
-                delay(waitTimeMs)
+                // 고정 간격(Fixed-Rate) 대기시간 계산 (인식 소요시간 차감)
+                val totalIntervalMs = (intervalMinutes.coerceAtLeast(1) * 60 * 1000L)
+                val elapsedTimeMs = System.currentTimeMillis() - cycleStartTime
+                val remainingWaitMs = (totalIntervalMs - elapsedTimeMs).coerceAtLeast(1000L)
+
+                Log.d(TAG, "Scheduler cycle elapsed: ${elapsedTimeMs}ms. Waiting remaining ${remainingWaitMs}ms for next cycle (Fixed rate: ${intervalMinutes}m)")
+                delay(remainingWaitMs)
             }
         }
     }

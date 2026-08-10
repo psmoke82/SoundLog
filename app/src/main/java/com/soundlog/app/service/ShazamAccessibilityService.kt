@@ -56,23 +56,41 @@ class ShazamAccessibilityService : AccessibilityService() {
                 if (callback != null && isMonitoringActive) {
                     isMonitoringActive = false
                     isListeningStarted = false
-                    returnToSoundLog()
+                    closeShazamAndReturnToSoundLog()
                     callback(result)
                 }
             }
         }
     }
 
-    fun returnToSoundLog() {
+    fun closeShazamAndReturnToSoundLog() {
+        // 1. Accessibility BACK 키로 Shazam 화면 닫기
+        try {
+            performGlobalAction(GLOBAL_ACTION_BACK)
+            Log.i(TAG, "Dispatched GLOBAL_ACTION_BACK to close Shazam screen")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to perform BACK action on Shazam", e)
+        }
+
+        // 2. Shazam 백그라운드 프로세스 및 세션 완전 종료
+        try {
+            val am = getSystemService(android.content.Context.ACTIVITY_SERVICE) as? android.app.ActivityManager
+            am?.killBackgroundProcesses(AppChecklistHelper.SHAZAM_PACKAGE_NAME)
+            Runtime.getRuntime().exec("am force-stop ${AppChecklistHelper.SHAZAM_PACKAGE_NAME}")
+            Log.i(TAG, "Force-stopped Shazam package cleanly")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to force-stop Shazam package", e)
+        }
+
+        // 3. SoundLog 메인 앱으로 복귀
         try {
             val intent = Intent(this, MainActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
             }
             startActivity(intent)
-            Log.i(TAG, "Returning to SoundLog app after Shazam recognition")
+            Log.i(TAG, "Returned to SoundLog app after Shazam cleanup")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to return to SoundLog", e)
-            // fallback: 홈 화면으로
             try { performGlobalAction(GLOBAL_ACTION_HOME) } catch (_: Exception) {}
         }
     }
@@ -113,7 +131,7 @@ class ShazamAccessibilityService : AccessibilityService() {
                 onResult(ShazamNodeFinder.RecognitionResult(false, errorMessage = "Shazam 앱이 단말기에 설치되어 있지 않습니다."))
                 return@launch
             }
-            launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
             startActivity(launchIntent)
 
             // 앱 렌더링 대기 (초기 1초)
@@ -174,7 +192,7 @@ class ShazamAccessibilityService : AccessibilityService() {
             if (isMonitoringActive) {
                 isMonitoringActive = false
                 isListeningStarted = false
-                returnToSoundLog()
+                closeShazamAndReturnToSoundLog()
                 val res = finalResult ?: ShazamNodeFinder.RecognitionResult(false, errorMessage = "동적 타임아웃(${maxTimeoutSeconds}s) 초과 - 인식 실패")
                 onResult(res)
             }
