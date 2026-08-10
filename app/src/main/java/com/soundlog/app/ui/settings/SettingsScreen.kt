@@ -482,7 +482,7 @@ fun SettingsScreen() {
                 val pInfo = context.packageManager.getPackageInfo(context.packageName, 0)
                 "SoundLog v${pInfo.versionName}"
             } catch (e: Exception) {
-                "SoundLog v1.0.27"
+                "SoundLog v1.0.28"
             }
         }
 

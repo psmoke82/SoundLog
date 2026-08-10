@@ -6,6 +6,9 @@ import com.soundlog.app.data.local.entity.SongResultEntity
 import com.soundlog.app.data.local.pref.EncryptedSettingsRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.RequestBody.Companion.asRequestBody
+import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
@@ -111,11 +114,11 @@ class TelegramQueueManager(
                 api.sendPhotoUrl(photoUrlEndpoint, chatId, song.albumArtUrl, messageText, "HTML")
             } else if (!song.albumArtPath.isNullOrBlank() && java.io.File(song.albumArtPath).exists()) {
                 val photoFile = java.io.File(song.albumArtPath)
-                val requestFile = okhttp3.RequestBody.create(okhttp3.MediaType.parse("image/jpeg"), photoFile)
+                val requestFile = photoFile.asRequestBody("image/jpeg".toMediaTypeOrNull())
                 val body = okhttp3.MultipartBody.Part.createFormData("photo", photoFile.name, requestFile)
-                val chatIdBody = okhttp3.RequestBody.create(okhttp3.MediaType.parse("text/plain"), chatId)
-                val captionBody = okhttp3.RequestBody.create(okhttp3.MediaType.parse("text/plain"), messageText)
-                val parseModeBody = okhttp3.RequestBody.create(okhttp3.MediaType.parse("text/plain"), "HTML")
+                val chatIdBody = chatId.toRequestBody("text/plain".toMediaTypeOrNull())
+                val captionBody = messageText.toRequestBody("text/plain".toMediaTypeOrNull())
+                val parseModeBody = "HTML".toRequestBody("text/plain".toMediaTypeOrNull())
                 val photoUrl = "https://api.telegram.org/bot$token/sendPhoto"
                 api.sendPhoto(photoUrl, chatIdBody, body, captionBody, parseModeBody)
             } else {
