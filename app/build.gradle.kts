@@ -12,8 +12,8 @@ android {
         applicationId = "com.soundlog.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0.23"
+        versionCode = 27
+        versionName = "1.0.27"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
