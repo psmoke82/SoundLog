@@ -128,12 +128,17 @@ object ShazamNodeFinder {
             return RecognitionResult(false, errorMessage = "Active window is '$pkgName', not Shazam package")
         }
 
-        // 1. 인식 실패 화면 확인
+        // 1. Shazam 메인 대기 화면("Shazam하려면 탭하세요") 상태 체크
+        if (isMainHomeScreen(rootNode)) {
+            return RecognitionResult(false, errorMessage = "Shazam 메인 대기 화면 (Not recognizing)")
+        }
+
+        // 2. 인식 실패 화면 확인
         if (isNoMatchScreen(rootNode)) {
             return RecognitionResult(false, isNoMatch = true, errorMessage = "음악을 인식하지 못함 (No Match)")
         }
 
-        // 2. ID 목록 기반 정밀 추출
+        // 3. ID 목록 기반 정밀 추출
         var title: String? = null
         var artist: String? = null
 
@@ -155,12 +160,12 @@ object ShazamNodeFinder {
             }
         }
 
-        if (!title.isNullOrBlank() && !artist.isNullOrBlank()) {
+        if (!title.isNullOrBlank() && !artist.isNullOrBlank() && isValidArtistTitlePair(title, artist)) {
             Log.i(TAG, "Extracted by View ID -> Title: $title, Artist: $artist")
             return RecognitionResult(true, artist = artist, title = title)
         }
 
-        // 3. Fallback: 노드 트리를 탐색하여 순수 곡명 & 아티스트 텍스트 파싱
+        // 4. Fallback: 노드 트리를 탐색하여 순수 곡명 & 아티스트 텍스트 파싱
         val allTextNodes = mutableListOf<String>()
         collectCleanTextStrings(rootNode, allTextNodes)
 
@@ -172,16 +177,47 @@ object ShazamNodeFinder {
         if (validTexts.size >= 2) {
             val candidateTitle = validTexts[0]
             val candidateArtist = validTexts[1]
-            Log.i(TAG, "Extracted by Text Nodes Fallback -> Title: $candidateTitle, Artist: $candidateArtist")
-            return RecognitionResult(true, artist = candidateArtist, title = candidateTitle)
+            if (isValidArtistTitlePair(candidateTitle, candidateArtist)) {
+                Log.i(TAG, "Extracted by Text Nodes Fallback -> Title: $candidateTitle, Artist: $candidateArtist")
+                return RecognitionResult(true, artist = candidateArtist, title = candidateTitle)
+            }
         } else if (validTexts.size == 1 && !title.isNullOrBlank()) {
             val candidateArtist = validTexts[0]
-            if (candidateArtist != title) {
+            if (isValidArtistTitlePair(title, candidateArtist)) {
                 return RecognitionResult(true, artist = candidateArtist, title = title)
             }
         }
 
         return RecognitionResult(false, errorMessage = "유효한 곡 정보 노드를 탐색하지 못함 (Valid texts: $validTexts)")
+    }
+
+    private fun isMainHomeScreen(rootNode: AccessibilityNodeInfo): Boolean {
+        val keywords = listOf(
+            "shazam하려면 탭하세요", "shazam하려면", "탭하세요",
+            "tap to shazam", "touch to shazam", "press to shazam"
+        )
+        return findNodesByTextKeywords(rootNode, keywords).isNotEmpty()
+    }
+
+    private fun isValidArtistTitlePair(title: String, artist: String): Boolean {
+        val lowerTitle = title.trim().lowercase()
+        val lowerArtist = artist.trim().lowercase()
+
+        val systemNoticeKeywords = listOf(
+            "라이브러리", "콘서트", "library", "concert", "charts", "차트",
+            "알겠습니다", "취소됨", "내부 오디오", "헤드폰", "음악 감상", "음악감상",
+            "오디오 사용", "재생되는", "인식 취소"
+        )
+
+        if (systemNoticeKeywords.any { lowerTitle.contains(it) || lowerArtist.contains(it) }) {
+            Log.w(TAG, "Rejected system notice text: Title='$title', Artist='$artist'")
+            return false
+        }
+        if (lowerTitle == lowerArtist) {
+            Log.w(TAG, "Rejected identical Title & Artist: Title='$title', Artist='$artist'")
+            return false
+        }
+        return true
     }
 
     private fun isNoMatchScreen(rootNode: AccessibilityNodeInfo): Boolean {
@@ -200,22 +236,24 @@ object ShazamNodeFinder {
 
         // 1. UI 시스템 안내/도움말/상태 키워드 필터링
         val ignoredKeywords = listOf(
-            "shazam", "search", "library", "charts", "settings",
+            "shazam", "search", "library", "charts", "settings", "concert", "concerts",
             "open in", "play full song", "connect", "spotify", "apple music",
             "youtube", "lyrics", "share", "video", "track", "listen", "tap to",
             "listening", "shazaming", "찾는 중", "듣는 중", "다시 시도", "결과 없음",
-            "my library", "recent shazams", "top tracks", "음악감상", "확인하세요",
+            "my library", "recent shazams", "top tracks", "음악감상", "음악 감상", "확인하세요",
             "기기에", "인식되는지", "도움말", "서비스", "약관", "정책", "플레이리스트",
             "인증", "설정", "권한", "알림", "연결", "안내", "확인", "일치하는",
             "검색 중", "검색중", "기다려주세요", "기다려", "잠시만", "중입니다",
-            "수음 중", "인식 중", "검색", "대기"
+            "수음 중", "인식 중", "검색", "대기", "라이브러리", "콘서트", "차트",
+            "알겠습니다", "헤드폰", "취소됨", "내부 오디오", "오디오 사용", "재생되는"
         )
         if (ignoredKeywords.any { lower.contains(it) }) return true
 
-        // 2. 가이드 문장 (~하세요, ~입니다, ~바랍니다, ~주세요 등 서술형 문장) 필터링
+        // 2. 가이드 문장 (~하세요, ~입니다, ~바랍니다, ~주세요, ~됨, ! 등 서술형/안내 문장) 필터링
         if (trimmed.endsWith("하세요") || trimmed.endsWith("입니다") ||
             trimmed.endsWith("십시요") || trimmed.endsWith("바랍니다") ||
-            trimmed.endsWith("주세요") || trimmed.endsWith("검색 중")) {
+            trimmed.endsWith("주세요") || trimmed.endsWith("검색 중") ||
+            trimmed.endsWith("됨") || trimmed.endsWith("!") || trimmed.endsWith("사용")) {
             return true
         }
 
