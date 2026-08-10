@@ -275,30 +275,22 @@ fun SettingsScreen() {
                             lineHeight = 18.sp
                         )
                     }
-                }
-            }
-        }
+                Spacer(modifier = Modifier.height(18.dp))
+                androidx.compose.material3.HorizontalDivider(color = CardBorder, thickness = 1.dp)
+                Spacer(modifier = Modifier.height(14.dp))
 
-        // 앨범 자켓이미지 전송 설정 Card
-        Card(
-            colors = CardDefaults.cardColors(containerColor = SurfaceDark),
-            modifier = Modifier
-                .fillMaxWidth()
-                .border(1.dp, CardBorder, RoundedCornerShape(16.dp))
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(imageVector = Icons.Default.Image, contentDescription = null, tint = PrimaryNeon)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "앨범 자켓이미지 전송",
+                        text = "🖼️ 앨범 자켓이미지 전송 옵션",
                         fontWeight = FontWeight.Bold,
-                        fontSize = 16.sp,
+                        fontSize = 15.sp,
                         color = TextPrimary
                     )
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
                 val artOptions = listOf(
                     Triple(
@@ -309,7 +301,7 @@ fun SettingsScreen() {
                     Triple(
                         EncryptedSettingsRepository.ALBUM_ART_SHAZAM,
                         "2. Shazam",
-                        "샤잠 앱 실행 후 아티스트 상세 페이지 클릭 ➔ 스와이프를 통해 앨범 자켓을 캡처하여 전송합니다."
+                        "샤잠 앱 아티스트 상세 페이지 클릭 ➔ 스와이프를 통해 앨범 자켓을 캡처하여 전송합니다."
                     ),
                     Triple(
                         EncryptedSettingsRepository.ALBUM_ART_ITUNES,
@@ -329,7 +321,7 @@ fun SettingsScreen() {
                                     settings.albumArtOption = key
                                 }
                             )
-                            .padding(vertical = 6.dp),
+                            .padding(vertical = 4.dp),
                         verticalAlignment = Alignment.Top
                     ) {
                         RadioButton(
@@ -343,15 +335,15 @@ fun SettingsScreen() {
                                 unselectedColor = TextSecondary
                             )
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
                         Column {
                             Text(
                                 text = label,
-                                fontSize = 14.sp,
+                                fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = if (albumArtOption == key) PrimaryNeon else TextPrimary
                             )
-                            Spacer(modifier = Modifier.height(2.dp))
+                            Spacer(modifier = Modifier.height(1.dp))
                             Text(
                                 text = description,
                                 fontSize = 11.sp,
@@ -479,6 +471,31 @@ fun SettingsScreen() {
             Icon(imageVector = Icons.Default.Save, contentDescription = null, tint = Color.Black)
             Spacer(modifier = Modifier.width(8.dp))
             Text("설정값 저장하기", color = Color.Black, fontWeight = FontWeight.Bold)
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        val appVersionName = remember {
+            try {
+                val pInfo = context.packageManager.getPackageInfo(context.packageName, 0)
+                "SoundLog v${pInfo.versionName}"
+            } catch (e: Exception) {
+                "SoundLog v1.0.23"
+            }
+        }
+
+        androidx.compose.foundation.layout.Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 12.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = appVersionName,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium,
+                color = TextSecondary
+            )
         }
     }
 }

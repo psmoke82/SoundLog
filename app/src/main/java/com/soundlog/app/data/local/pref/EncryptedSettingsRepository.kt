@@ -77,11 +77,11 @@ class EncryptedSettingsRepository(context: Context) {
         set(value) = sharedPreferences.edit().putString(KEY_CHAT_ID, value).apply()
 
     var recognitionIntervalMinutes: Int
-        get() = sharedPreferences.getInt(KEY_INTERVAL_MIN, 5)
+        get() = sharedPreferences.getInt(KEY_INTERVAL_MIN, 2)
         set(value) = sharedPreferences.edit().putInt(KEY_INTERVAL_MIN, value).apply()
 
     var maxTimeoutSeconds: Int
-        get() = sharedPreferences.getInt(KEY_MAX_TIMEOUT_SEC, 12)
+        get() = sharedPreferences.getInt(KEY_MAX_TIMEOUT_SEC, 30)
         set(value) = sharedPreferences.edit().putInt(KEY_MAX_TIMEOUT_SEC, value).apply()
 
     var deduplicationWindowMinutes: Int
@@ -89,7 +89,7 @@ class EncryptedSettingsRepository(context: Context) {
         set(value) = sharedPreferences.edit().putInt(KEY_DEDUP_WINDOW_MIN, value).apply()
 
     var maxRetryCount: Int
-        get() = sharedPreferences.getInt(KEY_MAX_RETRY, 3)
+        get() = sharedPreferences.getInt(KEY_MAX_RETRY, 2)
         set(value) = sharedPreferences.edit().putInt(KEY_MAX_RETRY, value).apply()
 
     var maxSongLogCount: Int
