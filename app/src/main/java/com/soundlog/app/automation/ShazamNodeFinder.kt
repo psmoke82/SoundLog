@@ -130,10 +130,15 @@ object ShazamNodeFinder {
 
         // 1. Shazam 메인 대기 화면("Shazam하려면 탭하세요") 상태 체크
         if (isMainHomeScreen(rootNode)) {
-            return RecognitionResult(false, errorMessage = "Shazam 메인 대기 화면 (Not recognizing)")
+            return RecognitionResult(false, errorMessage = "Shazam 메인 대기 화면 (Listening pending)")
         }
 
-        // 2. 인식 실패 화면 확인
+        // 2. Shazam 수음 진행 중("듣는 중...") 상태 체크
+        if (isListeningScreen(rootNode)) {
+            return RecognitionResult(false, errorMessage = "Shazam 수음 진행 중 (Listening...)")
+        }
+
+        // 3. 인식 실패 화면 확인
         if (isNoMatchScreen(rootNode)) {
             return RecognitionResult(false, isNoMatch = true, errorMessage = "음악을 인식하지 못함 (No Match)")
         }
@@ -195,6 +200,13 @@ object ShazamNodeFinder {
         val keywords = listOf(
             "shazam하려면 탭하세요", "shazam하려면", "탭하세요",
             "tap to shazam", "touch to shazam", "press to shazam"
+        )
+        return findNodesByTextKeywords(rootNode, keywords).isNotEmpty()
+    }
+
+    private fun isListeningScreen(rootNode: AccessibilityNodeInfo): Boolean {
+        val keywords = listOf(
+            "듣는 중", "listening", "shazaming", "찾는 중", "searching"
         )
         return findNodesByTextKeywords(rootNode, keywords).isNotEmpty()
     }

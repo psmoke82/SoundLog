@@ -19,6 +19,8 @@ class ShazamAccessibilityService : AccessibilityService() {
     private val serviceScope = CoroutineScope(Dispatchers.Main + Job())
     private var activeRecognitionJob: Job? = null
     @Volatile private var isMonitoringActive = false
+    @Volatile private var isListeningStarted = false
+    private var buttonClickedTimestamp = 0L
     private var activeCallback: ((ShazamNodeFinder.RecognitionResult) -> Unit)? = null
 
     override fun onServiceConnected() {
@@ -28,7 +30,12 @@ class ShazamAccessibilityService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        if (!isMonitoringActive || event == null) return
+        if (!isMonitoringActive || !isListeningStarted || event == null) return
+
+        // 버튼 클릭 후 최소 1.5초간은 수음 진행 대기 (조기 리턴 방지)
+        if (System.currentTimeMillis() - buttonClickedTimestamp < 1500L) {
+            return
+        }
 
         val eventPkg = event.packageName?.toString()
         if (eventPkg != AppChecklistHelper.SHAZAM_PACKAGE_NAME) {
@@ -48,6 +55,7 @@ class ShazamAccessibilityService : AccessibilityService() {
                 val callback = activeCallback
                 if (callback != null && isMonitoringActive) {
                     isMonitoringActive = false
+                    isListeningStarted = false
                     returnToSoundLog()
                     callback(result)
                 }
@@ -91,6 +99,7 @@ class ShazamAccessibilityService : AccessibilityService() {
     ) {
         activeRecognitionJob?.cancel()
         isMonitoringActive = true
+        isListeningStarted = false
         activeCallback = onResult
 
         activeRecognitionJob = serviceScope.launch {
@@ -100,6 +109,7 @@ class ShazamAccessibilityService : AccessibilityService() {
             val launchIntent = packageManager.getLaunchIntentForPackage(AppChecklistHelper.SHAZAM_PACKAGE_NAME)
             if (launchIntent == null) {
                 isMonitoringActive = false
+                isListeningStarted = false
                 onResult(ShazamNodeFinder.RecognitionResult(false, errorMessage = "Shazam 앱이 단말기에 설치되어 있지 않습니다."))
                 return@launch
             }
@@ -116,6 +126,7 @@ class ShazamAccessibilityService : AccessibilityService() {
                 val rootNode = rootInActiveWindow
                 if (ShazamNodeFinder.findAndClickShazamButton(rootNode, this@ShazamAccessibilityService)) {
                     clicked = true
+                    buttonClickedTimestamp = System.currentTimeMillis()
                     Log.i(TAG, "Shazam button clicked successfully!")
                     break
                 }
@@ -125,9 +136,17 @@ class ShazamAccessibilityService : AccessibilityService() {
             if (!clicked) {
                 Log.w(TAG, "Shazam 버튼 클릭 실패. 화면 중앙 제스처 터치 강제 실행")
                 clicked = ShazamNodeFinder.findAndClickShazamButton(rootInActiveWindow, this@ShazamAccessibilityService)
+                buttonClickedTimestamp = System.currentTimeMillis()
             }
 
-            Log.i(TAG, "Shazam button clicked status: $clicked. Monitoring results dynamically (Max: ${maxTimeoutSeconds}s)...")
+            // 버튼 클릭 완료 후 수음 모니터링 활성화
+            isListeningStarted = true
+            Log.i(TAG, "Shazam button clicked status: $clicked. Waiting initial 1.5s for audio capture...")
+
+            // 수음 시작 후 최소 1.5초 대기 (조기 화면 감지 방지)
+            delay(1500)
+
+            Log.i(TAG, "Monitoring results dynamically (Max: ${maxTimeoutSeconds}s)...")
 
             // 3. 동적 타임아웃 수음 (결과 감지 시 즉시 조기 종료)
             val startTime = System.currentTimeMillis()
@@ -154,6 +173,7 @@ class ShazamAccessibilityService : AccessibilityService() {
 
             if (isMonitoringActive) {
                 isMonitoringActive = false
+                isListeningStarted = false
                 returnToSoundLog()
                 val res = finalResult ?: ShazamNodeFinder.RecognitionResult(false, errorMessage = "동적 타임아웃(${maxTimeoutSeconds}s) 초과 - 인식 실패")
                 onResult(res)
