@@ -56,8 +56,15 @@ class ShazamAccessibilityService : AccessibilityService() {
                 if (callback != null && isMonitoringActive) {
                     isMonitoringActive = false
                     isListeningStarted = false
-                    closeShazamAndReturnToSoundLog()
-                    callback(result)
+                    serviceScope.launch {
+                        var finalRes = result
+                        val settings = com.soundlog.app.SoundLogApp.instance.settingsRepository
+                        if (finalRes.success && settings.albumArtOption == com.soundlog.app.data.local.pref.EncryptedSettingsRepository.ALBUM_ART_SHAZAM) {
+                            finalRes = processOptionBAlbumArtCapture(finalRes)
+                        }
+                        closeShazamAndReturnToSoundLog()
+                        callback(finalRes)
+                    }
                 }
             }
         }
@@ -192,10 +199,51 @@ class ShazamAccessibilityService : AccessibilityService() {
             if (isMonitoringActive) {
                 isMonitoringActive = false
                 isListeningStarted = false
+
+                var res = finalResult ?: ShazamNodeFinder.RecognitionResult(false, errorMessage = "동적 타임아웃(${maxTimeoutSeconds}s) 초과 - 인식 실패")
+
+                // 방안 B: 인식 성공 및 ALBUM_ART_SHAZAM 설정 시 상세 클릭 -> 스와이프 -> 스크린샷 캡처 수행
+                val settings = com.soundlog.app.SoundLogApp.instance.settingsRepository
+                if (res.success && settings.albumArtOption == com.soundlog.app.data.local.pref.EncryptedSettingsRepository.ALBUM_ART_SHAZAM) {
+                    res = processOptionBAlbumArtCapture(res)
+                }
+
                 closeShazamAndReturnToSoundLog()
-                val res = finalResult ?: ShazamNodeFinder.RecognitionResult(false, errorMessage = "동적 타임아웃(${maxTimeoutSeconds}s) 초과 - 인식 실패")
                 onResult(res)
             }
+        }
+    }
+
+    private suspend fun processOptionBAlbumArtCapture(result: ShazamNodeFinder.RecognitionResult): ShazamNodeFinder.RecognitionResult {
+        Log.i(TAG, "Starting Option B: Album Art Capture Flow (Click header -> Swipe -> Take Screenshot)...")
+        try {
+            // 1. 첨부 3 상세 화면 전환 대기 (1.2초)
+            delay(1200)
+
+            // 2. 첨부 3 상단 아티스트 이미지 영역 클릭 (첨부4로 이동)
+            ShazamNodeFinder.clickTopHeaderArea(this)
+            delay(1000)
+
+            // 3. 첨부 4 -> 첨부 5 이동을 위해 왼쪽으로 스와이프 (우 -> 좌)
+            ShazamNodeFinder.swipeLeftToNextCard(this)
+            delay(1000)
+
+            // 4. 스크린샷 캡처 및 이미지 파일 저장
+            val imageFile = java.io.File(cacheDir, "cover_art_${System.currentTimeMillis()}.jpg")
+            val deferred = kotlinx.coroutines.CompletableDeferred<Boolean>()
+
+            ShazamNodeFinder.captureScreenToFile(this, imageFile) { success ->
+                deferred.complete(success)
+            }
+
+            val captured = kotlinx.coroutines.withTimeoutOrNull(3000L) { deferred.await() } ?: false
+            val finalImagePath = if (captured && imageFile.exists()) imageFile.absolutePath else null
+
+            Log.i(TAG, "Option B Album Art Capture completed! Image path: $finalImagePath")
+            return result.copy(albumArtPath = finalImagePath)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed during Option B Album Art Capture", e)
+            return result
         }
     }
 

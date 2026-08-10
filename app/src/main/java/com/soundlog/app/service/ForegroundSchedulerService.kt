@@ -184,10 +184,29 @@ class ForegroundSchedulerService : Service() {
                                 Log.i(TAG, "Duplicate song detected ($songKey). Skipping Telegram broadcast.")
                                 watchdogManager.recordLog("DUPLICATE_SKIP", "중복 곡 발송 스킵: $artist - $title")
                             } else {
+                                var albumArtUrl: String? = null
+                                var albumArtPath: String? = result.albumArtPath
+
+                                when (settings.albumArtOption) {
+                                    com.soundlog.app.data.local.pref.EncryptedSettingsRepository.ALBUM_ART_ITUNES -> {
+                                        albumArtUrl = com.soundlog.app.util.iTunesCoverArtFetcher.fetchCoverArtUrl(artist, title)
+                                        albumArtPath = null
+                                    }
+                                    com.soundlog.app.data.local.pref.EncryptedSettingsRepository.ALBUM_ART_NONE -> {
+                                        albumArtUrl = null
+                                        albumArtPath = null
+                                    }
+                                    com.soundlog.app.data.local.pref.EncryptedSettingsRepository.ALBUM_ART_SHAZAM -> {
+                                        albumArtUrl = null
+                                    }
+                                }
+
                                 val newSong = SongResultEntity(
                                     artist = artist,
                                     title = title,
-                                    songKey = songKey
+                                    songKey = songKey,
+                                    albumArtPath = albumArtPath,
+                                    albumArtUrl = albumArtUrl
                                 )
                                 val sendSuccess = app.telegramQueueManager.enqueueAndSend(newSong)
                                 if (sendSuccess) {

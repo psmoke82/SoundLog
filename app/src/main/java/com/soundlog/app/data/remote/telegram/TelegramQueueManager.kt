@@ -104,10 +104,25 @@ class TelegramQueueManager(
         }
 
         val messageText = formatSongMessage(song)
-        val url = "https://api.telegram.org/bot$token/sendMessage"
 
         return try {
-            val response = api.sendMessage(url, chatId, messageText)
+            val response = if (!song.albumArtUrl.isNullOrBlank()) {
+                val photoUrlEndpoint = "https://api.telegram.org/bot$token/sendPhoto"
+                api.sendPhotoUrl(photoUrlEndpoint, chatId, song.albumArtUrl, messageText, "HTML")
+            } else if (!song.albumArtPath.isNullOrBlank() && java.io.File(song.albumArtPath).exists()) {
+                val photoFile = java.io.File(song.albumArtPath)
+                val requestFile = okhttp3.RequestBody.create(okhttp3.MediaType.parse("image/jpeg"), photoFile)
+                val body = okhttp3.MultipartBody.Part.createFormData("photo", photoFile.name, requestFile)
+                val chatIdBody = okhttp3.RequestBody.create(okhttp3.MediaType.parse("text/plain"), chatId)
+                val captionBody = okhttp3.RequestBody.create(okhttp3.MediaType.parse("text/plain"), messageText)
+                val parseModeBody = okhttp3.RequestBody.create(okhttp3.MediaType.parse("text/plain"), "HTML")
+                val photoUrl = "https://api.telegram.org/bot$token/sendPhoto"
+                api.sendPhoto(photoUrl, chatIdBody, body, captionBody, parseModeBody)
+            } else {
+                val url = "https://api.telegram.org/bot$token/sendMessage"
+                api.sendMessage(url, chatId, messageText)
+            }
+
             if (response.isSuccessful && response.body()?.ok == true) {
                 val msgId = response.body()?.result?.messageId
                 songResultDao.update(

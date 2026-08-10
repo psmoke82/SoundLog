@@ -13,5 +13,5 @@
      4. `git push origin main` 소스코드 푸시
      5. 버전 태그(`v1.0.[커밋수]`) 생성 및 `git push origin --tags` 푸시
      6. `CHANGELOG.md` 문서에 묶인 마이너 개선 내역 한눈에 정리
-     7. GitHub Release 게시 및 `SoundLog-v1.0.[커밋수]-rel.apk` 바이너리 업로드
+     7. GitHub Release 게시 (Release 제목/Title은 수식어 없이 앱이름과 버전명만 사용, 예: `--title "SoundLog v1.0.21"`) 및 `SoundLog-v1.0.[커밋수]-rel.apk` 바이너리 업로드
      8. 사용자에게 릴리즈 링크, APK 직접 다운로드 링크, Release Notes 전문 제공

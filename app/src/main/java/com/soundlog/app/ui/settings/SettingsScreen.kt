@@ -16,8 +16,10 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Save
@@ -30,6 +32,8 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -72,6 +76,7 @@ fun SettingsScreen() {
     var dedupStr by remember { mutableStateOf(settings.deduplicationWindowMinutes.toString()) }
     var retryStr by remember { mutableStateOf(settings.maxRetryCount.toString()) }
     var maxSongCountStr by remember { mutableStateOf(settings.maxSongLogCount.toString()) }
+    var albumArtOption by remember { mutableStateOf(settings.albumArtOption) }
 
     val scrollState = rememberScrollState()
 
@@ -274,6 +279,91 @@ fun SettingsScreen() {
             }
         }
 
+        // 앨범 자켓이미지 전송 설정 Card
+        Card(
+            colors = CardDefaults.cardColors(containerColor = SurfaceDark),
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(1.dp, CardBorder, RoundedCornerShape(16.dp))
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(imageVector = Icons.Default.Image, contentDescription = null, tint = PrimaryNeon)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "앨범 자켓이미지 전송",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp,
+                        color = TextPrimary
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                val artOptions = listOf(
+                    Triple(
+                        EncryptedSettingsRepository.ALBUM_ART_NONE,
+                        "1. 미전송",
+                        "기존처럼 곡제목/아티스트 정보 텍스트만 텔레그램으로 전송합니다."
+                    ),
+                    Triple(
+                        EncryptedSettingsRepository.ALBUM_ART_SHAZAM,
+                        "2. Shazam",
+                        "샤잠 앱 실행 후 아티스트 상세 페이지 클릭 ➔ 스와이프를 통해 앨범 자켓을 캡처하여 전송합니다."
+                    ),
+                    Triple(
+                        EncryptedSettingsRepository.ALBUM_ART_ITUNES,
+                        "3. iTunes API",
+                        "식별된 곡 정보를 기반으로 iTunes API에서 1000x1000 고화질 원본 자켓을 0.1초 만에 획득하여 전송합니다."
+                    )
+                )
+
+                artOptions.forEach { (key, label, description) ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .selectable(
+                                selected = (albumArtOption == key),
+                                onClick = {
+                                    albumArtOption = key
+                                    settings.albumArtOption = key
+                                }
+                            )
+                            .padding(vertical = 6.dp),
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        RadioButton(
+                            selected = (albumArtOption == key),
+                            onClick = {
+                                albumArtOption = key
+                                settings.albumArtOption = key
+                            },
+                            colors = RadioButtonDefaults.colors(
+                                selectedColor = PrimaryNeon,
+                                unselectedColor = TextSecondary
+                            )
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column {
+                            Text(
+                                text = label,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (albumArtOption == key) PrimaryNeon else TextPrimary
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = description,
+                                fontSize = 11.sp,
+                                color = TextSecondary,
+                                lineHeight = 15.sp
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
         // Dynamic Configurations Card
         Card(
             colors = CardDefaults.cardColors(containerColor = SurfaceDark),
@@ -373,6 +463,7 @@ fun SettingsScreen() {
                 settings.deduplicationWindowMinutes = dedup.coerceAtLeast(1)
                 settings.maxRetryCount = retry.coerceAtLeast(1)
                 settings.maxSongLogCount = maxSong.coerceAtLeast(10)
+                settings.albumArtOption = albumArtOption
 
                 scope.launch(Dispatchers.IO) {
                     app.database.songResultDao().pruneOldSongs(settings.maxSongLogCount)

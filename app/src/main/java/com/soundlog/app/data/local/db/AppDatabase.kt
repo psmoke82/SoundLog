@@ -14,7 +14,7 @@ import com.soundlog.app.data.local.entity.SongResultEntity
         ServiceStatusEntity::class,
         ExecutionLogEntity::class
     ],
-    version = 1,
+    version = 3,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

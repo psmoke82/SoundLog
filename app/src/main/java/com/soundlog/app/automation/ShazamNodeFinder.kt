@@ -18,7 +18,8 @@ object ShazamNodeFinder {
         val artist: String? = null,
         val title: String? = null,
         val isNoMatch: Boolean = false,
-        val errorMessage: String? = null
+        val errorMessage: String? = null,
+        val albumArtPath: String? = null
     )
 
     private val SHAZAM_BUTTON_IDS = listOf(
@@ -395,5 +396,105 @@ object ShazamNodeFinder {
             .build()
 
         return service.dispatchGesture(gesture, null, null)
+    }
+
+    /**
+     * 첨부3 상단 아티스트 이미지 영역 클릭 (y 25% 지점)
+     */
+    fun clickTopHeaderArea(service: AccessibilityService): Boolean {
+        val displayMetrics = service.resources.displayMetrics
+        val centerX = (displayMetrics.widthPixels / 2).toFloat()
+        val topY = (displayMetrics.heightPixels * 0.25f)
+
+        val path = Path().apply {
+            moveTo(centerX, topY)
+        }
+        val gesture = GestureDescription.Builder()
+            .addStroke(GestureDescription.StrokeDescription(path, 0, 100))
+            .build()
+
+        return service.dispatchGesture(gesture, null, null)
+    }
+
+    /**
+     * 첨부4 -> 첨부5 이동을 위해 왼쪽으로 스와이프 (우 -> 좌)
+     */
+    fun swipeLeftToNextCard(service: AccessibilityService): Boolean {
+        val displayMetrics = service.resources.displayMetrics
+        val startX = (displayMetrics.widthPixels * 0.85f)
+        val endX = (displayMetrics.widthPixels * 0.15f)
+        val centerY = (displayMetrics.heightPixels * 0.30f)
+
+        val path = Path().apply {
+            moveTo(startX, centerY)
+            lineTo(endX, centerY)
+        }
+        val gesture = GestureDescription.Builder()
+            .addStroke(GestureDescription.StrokeDescription(path, 0, 300))
+            .build()
+
+        return service.dispatchGesture(gesture, null, null)
+    }
+
+    /**
+     * 접근성 takeScreenshot API로 화면 캡처 및 앨범 자켓 크롭 저장 (Android 11+ 지원)
+     */
+    fun captureScreenToFile(
+        service: AccessibilityService,
+        outputFile: java.io.File,
+        onComplete: (Boolean) -> Unit
+    ) {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+            try {
+                service.takeScreenshot(
+                    android.view.Display.DEFAULT_DISPLAY,
+                    service.mainExecutor,
+                    object : AccessibilityService.TakeScreenshotCallback {
+                        override fun onSuccess(screenshot: AccessibilityService.ScreenshotResult) {
+                            try {
+                                val bitmap = android.graphics.Bitmap.wrapHardwareBuffer(
+                                    screenshot.hardwareBuffer,
+                                    screenshot.colorSpace
+                                )
+                                if (bitmap != null) {
+                                    // 앨범 자켓 상단 카드 영역 (y 10%~50%) 크롭
+                                    val width = bitmap.width
+                                    val height = bitmap.height
+                                    val cropY = (height * 0.10).toInt()
+                                    val cropHeight = (height * 0.42).toInt()
+
+                                    val cropped = if (cropY + cropHeight <= height) {
+                                        android.graphics.Bitmap.createBitmap(bitmap, 0, cropY, width, cropHeight)
+                                    } else {
+                                        bitmap
+                                    }
+
+                                    java.io.FileOutputStream(outputFile).use { out ->
+                                        cropped.compress(android.graphics.Bitmap.CompressFormat.JPEG, 90, out)
+                                    }
+                                    Log.i(TAG, "Screenshot saved successfully to ${outputFile.absolutePath}")
+                                    onComplete(true)
+                                    return
+                                }
+                            } catch (e: Exception) {
+                                Log.e(TAG, "Failed to process screenshot bitmap", e)
+                            }
+                            onComplete(false)
+                        }
+
+                        override fun onFailure(errorCode: Int) {
+                            Log.e(TAG, "Failed to take screenshot, errorCode: $errorCode")
+                            onComplete(false)
+                        }
+                    }
+                )
+            } catch (e: Exception) {
+                Log.e(TAG, "takeScreenshot API exception", e)
+                onComplete(false)
+            }
+        } else {
+            Log.w(TAG, "takeScreenshot requires Android 11+ (API 30)")
+            onComplete(false)
+        }
     }
 }

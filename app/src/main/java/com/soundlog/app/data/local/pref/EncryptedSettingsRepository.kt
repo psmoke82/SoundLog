@@ -20,6 +20,11 @@ class EncryptedSettingsRepository(context: Context) {
         private const val KEY_MAX_SONG_LOG_COUNT = "max_song_log_count"
         private const val KEY_SERVICE_ENABLED = "service_enabled"
         private const val KEY_MESSAGE_FORMAT = "telegram_message_format"
+        private const val KEY_ALBUM_ART_OPTION = "album_art_option"
+
+        const val ALBUM_ART_NONE = "NONE"
+        const val ALBUM_ART_SHAZAM = "SHAZAM"
+        const val ALBUM_ART_ITUNES = "ITUNES"
 
         val DEFAULT_TELEGRAM_FORMAT = """
             🎵 <b>[지금 나오는 음악]</b>
@@ -98,4 +103,8 @@ class EncryptedSettingsRepository(context: Context) {
     var telegramMessageFormat: String
         get() = sharedPreferences.getString(KEY_MESSAGE_FORMAT, DEFAULT_TELEGRAM_FORMAT) ?: DEFAULT_TELEGRAM_FORMAT
         set(value) = sharedPreferences.edit().putString(KEY_MESSAGE_FORMAT, value).apply()
+
+    var albumArtOption: String
+        get() = sharedPreferences.getString(KEY_ALBUM_ART_OPTION, ALBUM_ART_NONE) ?: ALBUM_ART_NONE
+        set(value) = sharedPreferences.edit().putString(KEY_ALBUM_ART_OPTION, value).apply()
 }
