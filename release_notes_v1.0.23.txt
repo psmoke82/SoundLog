@@ -20,3 +20,4 @@
 
 4. **프로젝트 릴리즈 규칙 고정 (AGENTS.md)**:
    - GitHub Release 게시 시 제목(Title)을 수식어 없이 앱이름과 버전명(`SoundLog v1.0.23`)만 사용하도록 규칙 명시 및 고정.
+   - GitHub Release 게시 및 Push 후 실시간 HTTP / gh release view 검증 완료 후 사용자에게 알림 제공.

@@ -14,4 +14,4 @@
      5. 버전 태그(`v1.0.[커밋수]`) 생성 및 `git push origin --tags` 푸시
      6. `CHANGELOG.md` 문서에 묶인 마이너 개선 내역 한눈에 정리
      7. GitHub Release 게시 (Release 제목/Title은 수식어 없이 앱이름과 버전명만 사용, 예: `--title "SoundLog v1.0.21"`) 및 `SoundLog-v1.0.[커밋수]-rel.apk` 바이너리 업로드
-     8. 사용자에게 릴리즈 링크, APK 직접 다운로드 링크, Release Notes 전문 제공
+     8. **릴리즈 링크 및 웹 페이지 생존 직접 검증**: `git push` 및 `gh release` 등록 후, 해당 릴리즈 페이지 URL 및 다운로드 링크가 실제로 정상 작동(HTTP 200 또는 `gh release view` 확인)하는지 최종 직접 확인한 후에만 사용자에게 릴리즈 링크, APK 다운로드 링크, Release Notes 전문을 알림 제공.
