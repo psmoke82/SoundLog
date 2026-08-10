@@ -106,14 +106,43 @@ class TelegramQueueManager(
             return false
         }
 
-        val messageText = formatSongMessage(song)
+        var currentSong = song
+        val artOption = settingsRepository.albumArtOption
+        when (artOption) {
+            EncryptedSettingsRepository.ALBUM_ART_ITUNES -> {
+                if (currentSong.albumArtUrl.isNullOrBlank()) {
+                    val fetchedUrl = com.soundlog.app.util.iTunesCoverArtFetcher.fetchCoverArtUrl(currentSong.artist, currentSong.title)
+                    if (!fetchedUrl.isNullOrBlank()) {
+                        currentSong = currentSong.copy(albumArtUrl = fetchedUrl, albumArtPath = null)
+                    }
+                }
+            }
+            EncryptedSettingsRepository.ALBUM_ART_SHAZAM -> {
+                if (currentSong.albumArtPath.isNullOrBlank() || !java.io.File(currentSong.albumArtPath).exists()) {
+                    if (currentSong.albumArtUrl.isNullOrBlank()) {
+                        Log.i(TAG, "Shazam screenshot missing for Shazam option, falling back to iTunes Cover Art...")
+                        val fetchedUrl = com.soundlog.app.util.iTunesCoverArtFetcher.fetchCoverArtUrl(currentSong.artist, currentSong.title)
+                        if (!fetchedUrl.isNullOrBlank()) {
+                            currentSong = currentSong.copy(albumArtUrl = fetchedUrl)
+                        }
+                    }
+                }
+            }
+            EncryptedSettingsRepository.ALBUM_ART_NONE -> {
+                currentSong = currentSong.copy(albumArtPath = null, albumArtUrl = null)
+            }
+        }
+
+        val messageText = formatSongMessage(currentSong)
+        val targetUrl = currentSong.albumArtUrl
+        val targetPath = currentSong.albumArtPath
 
         return try {
-            val response = if (!song.albumArtUrl.isNullOrBlank()) {
+            val response = if (!targetUrl.isNullOrBlank()) {
                 val photoUrlEndpoint = "https://api.telegram.org/bot$token/sendPhoto"
-                api.sendPhotoUrl(photoUrlEndpoint, chatId, song.albumArtUrl, messageText, "HTML")
-            } else if (!song.albumArtPath.isNullOrBlank() && java.io.File(song.albumArtPath).exists()) {
-                val photoFile = java.io.File(song.albumArtPath)
+                api.sendPhotoUrl(photoUrlEndpoint, chatId, targetUrl, messageText, "HTML")
+            } else if (!targetPath.isNullOrBlank() && java.io.File(targetPath).exists()) {
+                val photoFile = java.io.File(targetPath)
                 val requestFile = photoFile.asRequestBody("image/jpeg".toMediaTypeOrNull())
                 val body = okhttp3.MultipartBody.Part.createFormData("photo", photoFile.name, requestFile)
                 val chatIdBody = chatId.toRequestBody("text/plain".toMediaTypeOrNull())
@@ -129,7 +158,7 @@ class TelegramQueueManager(
             if (response.isSuccessful && response.body()?.ok == true) {
                 val msgId = response.body()?.result?.messageId
                 songResultDao.update(
-                    song.copy(
+                    currentSong.copy(
                         telegramStatus = SongResultEntity.STATUS_SENT,
                         telegramMessageId = msgId,
                         errorMessage = null
@@ -139,9 +168,9 @@ class TelegramQueueManager(
             } else {
                 val errorMsg = response.body()?.description ?: "HTTP ${response.code()}"
                 songResultDao.update(
-                    song.copy(
+                    currentSong.copy(
                         telegramStatus = SongResultEntity.STATUS_PENDING,
-                        retryCount = song.retryCount + 1,
+                        retryCount = currentSong.retryCount + 1,
                         errorMessage = errorMsg
                     )
                 )

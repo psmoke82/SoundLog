@@ -400,7 +400,8 @@ fun DashboardScreen(onNavigateToLogs: () -> Unit = {}) {
                                     val newSong = SongResultEntity(
                                         artist = artistName,
                                         title = songTitle,
-                                        songKey = songKey
+                                        songKey = songKey,
+                                        albumArtPath = result.albumArtPath
                                     )
                                     val sendSuccess = app.telegramQueueManager.enqueueAndSend(newSong)
                                     if (sendSuccess) {
