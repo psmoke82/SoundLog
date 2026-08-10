@@ -275,6 +275,8 @@ fun SettingsScreen() {
                             lineHeight = 18.sp
                         )
                     }
+                }
+
                 Spacer(modifier = Modifier.height(18.dp))
                 androidx.compose.material3.HorizontalDivider(color = CardBorder, thickness = 1.dp)
                 Spacer(modifier = Modifier.height(14.dp))
