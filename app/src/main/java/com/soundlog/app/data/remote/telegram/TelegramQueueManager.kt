@@ -214,7 +214,8 @@ class TelegramQueueManager(
             template = settingsRepository.telegramMessageFormat,
             title = song.title,
             artist = song.artist,
-            timestamp = song.detectedAt
+            timestamp = song.detectedAt,
+            youtubeUrl = song.youtubeUrl
         )
     }
 
@@ -231,7 +232,8 @@ class TelegramQueueManager(
             template: String,
             title: String,
             artist: String,
-            timestamp: Long = System.currentTimeMillis()
+            timestamp: Long = System.currentTimeMillis(),
+            youtubeUrl: String? = null
         ): String {
             val fmt = if (template.isBlank()) EncryptedSettingsRepository.DEFAULT_TELEGRAM_FORMAT else template
             val date = Date(timestamp)
@@ -243,9 +245,15 @@ class TelegramQueueManager(
                 .replace("<", "&lt;")
                 .replace(">", "&gt;")
 
+            val titleText = if (!youtubeUrl.isNullOrBlank()) {
+                "<a href=\"$youtubeUrl\">${escape(title)}</a>"
+            } else {
+                escape(title)
+            }
+
             return fmt
-                .replace("{title}", escape(title))
-                .replace("{곡명}", escape(title))
+                .replace("{title}", titleText)
+                .replace("{곡명}", titleText)
                 .replace("{artist}", escape(artist))
                 .replace("{아티스트}", escape(artist))
                 .replace("{date}", dateStr)

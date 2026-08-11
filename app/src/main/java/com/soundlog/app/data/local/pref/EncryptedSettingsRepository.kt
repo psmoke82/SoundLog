@@ -21,10 +21,14 @@ class EncryptedSettingsRepository(context: Context) {
         private const val KEY_SERVICE_ENABLED = "service_enabled"
         private const val KEY_MESSAGE_FORMAT = "telegram_message_format"
         private const val KEY_ALBUM_ART_OPTION = "album_art_option"
+        private const val KEY_MUSIC_LINK_OPTION = "music_link_option"
 
         const val ALBUM_ART_NONE = "NONE"
         const val ALBUM_ART_SHAZAM = "SHAZAM"
         const val ALBUM_ART_ITUNES = "ITUNES"
+
+        const val MUSIC_LINK_NONE = "NONE"
+        const val MUSIC_LINK_YOUTUBE = "YOUTUBE"
 
         val DEFAULT_TELEGRAM_FORMAT = """
             🎵 <b>[지금 나오는 음악]</b>
@@ -107,4 +111,8 @@ class EncryptedSettingsRepository(context: Context) {
     var albumArtOption: String
         get() = sharedPreferences.getString(KEY_ALBUM_ART_OPTION, ALBUM_ART_NONE) ?: ALBUM_ART_NONE
         set(value) = sharedPreferences.edit().putString(KEY_ALBUM_ART_OPTION, value).apply()
+
+    var musicLinkOption: String
+        get() = sharedPreferences.getString(KEY_MUSIC_LINK_OPTION, MUSIC_LINK_NONE) ?: MUSIC_LINK_NONE
+        set(value) = sharedPreferences.edit().putString(KEY_MUSIC_LINK_OPTION, value).apply()
 }

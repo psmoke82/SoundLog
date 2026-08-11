@@ -397,13 +397,37 @@ fun DashboardScreen(onNavigateToLogs: () -> Unit = {}) {
                                     val songTitle = result.title
                                     val songKey = SongKeyNormalizer.generateSongKey(artistName, songTitle)
 
+                                    var albumArtUrl: String? = null
+                                    var albumArtPath: String? = result.albumArtPath
+
+                                    when (settings.albumArtOption) {
+                                        com.soundlog.app.data.local.pref.EncryptedSettingsRepository.ALBUM_ART_ITUNES -> {
+                                            albumArtUrl = com.soundlog.app.util.iTunesCoverArtFetcher.fetchCoverArtUrl(artistName, songTitle)
+                                            albumArtPath = null
+                                        }
+                                        com.soundlog.app.data.local.pref.EncryptedSettingsRepository.ALBUM_ART_NONE -> {
+                                            albumArtUrl = null
+                                            albumArtPath = null
+                                        }
+                                        com.soundlog.app.data.local.pref.EncryptedSettingsRepository.ALBUM_ART_SHAZAM -> {
+                                            albumArtUrl = null
+                                        }
+                                    }
+
+                                    val youtubeUrl = if (settings.musicLinkOption == com.soundlog.app.data.local.pref.EncryptedSettingsRepository.MUSIC_LINK_YOUTUBE) {
+                                        service.fetchYouTubeLinkFlow(artistName, songTitle)
+                                    } else null
+
                                     val newSong = SongResultEntity(
                                         artist = artistName,
                                         title = songTitle,
                                         songKey = songKey,
-                                        albumArtPath = result.albumArtPath
+                                        albumArtPath = albumArtPath,
+                                        albumArtUrl = albumArtUrl,
+                                        youtubeUrl = youtubeUrl
                                     )
                                     val sendSuccess = app.telegramQueueManager.enqueueAndSend(newSong)
+
                                     if (sendSuccess) {
                                         watchdog.recordSuccess(artistName, songTitle)
                                         withContext(Dispatchers.Main) {

@@ -201,12 +201,17 @@ class ForegroundSchedulerService : Service() {
                                     }
                                 }
 
+                                val youtubeUrl = if (settings.musicLinkOption == com.soundlog.app.data.local.pref.EncryptedSettingsRepository.MUSIC_LINK_YOUTUBE) {
+                                    accessibilityService.fetchYouTubeLinkFlow(artist, title)
+                                } else null
+
                                 val newSong = SongResultEntity(
                                     artist = artist,
                                     title = title,
                                     songKey = songKey,
                                     albumArtPath = albumArtPath,
-                                    albumArtUrl = albumArtUrl
+                                    albumArtUrl = albumArtUrl,
+                                    youtubeUrl = youtubeUrl
                                 )
                                 val sendSuccess = app.telegramQueueManager.enqueueAndSend(newSong)
                                 if (sendSuccess) {

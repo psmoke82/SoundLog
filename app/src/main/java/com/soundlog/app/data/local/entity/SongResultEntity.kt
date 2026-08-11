@@ -16,7 +16,8 @@ data class SongResultEntity(
     val telegramMessageId: Long? = null,
     val errorMessage: String? = null,
     val albumArtPath: String? = null,
-    val albumArtUrl: String? = null
+    val albumArtUrl: String? = null,
+    val youtubeUrl: String? = null
 ) {
     companion object {
         const val STATUS_PENDING = "PENDING"

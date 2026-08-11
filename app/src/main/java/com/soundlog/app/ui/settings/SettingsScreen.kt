@@ -77,6 +77,7 @@ fun SettingsScreen() {
     var retryStr by remember { mutableStateOf(settings.maxRetryCount.toString()) }
     var maxSongCountStr by remember { mutableStateOf(settings.maxSongLogCount.toString()) }
     var albumArtOption by remember { mutableStateOf(settings.albumArtOption) }
+    var musicLinkOption by remember { mutableStateOf(settings.musicLinkOption) }
 
     val scrollState = rememberScrollState()
 
@@ -355,6 +356,80 @@ fun SettingsScreen() {
                         }
                     }
                 }
+
+                Spacer(modifier = Modifier.height(18.dp))
+                androidx.compose.material3.HorizontalDivider(color = CardBorder, thickness = 1.dp)
+                Spacer(modifier = Modifier.height(14.dp))
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(imageVector = Icons.Default.Send, contentDescription = null, tint = PrimaryNeon)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "🔗 음악 링크 전송 옵션",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp,
+                        color = TextPrimary
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                val linkOptions = listOf(
+                    Triple(
+                        EncryptedSettingsRepository.MUSIC_LINK_NONE,
+                        "1. 미전송",
+                        "음악 링크를 수집하지 않으며, 기존 텍스트 형태 메시지로 전송합니다."
+                    ),
+                    Triple(
+                        EncryptedSettingsRepository.MUSIC_LINK_YOUTUBE,
+                        "2. YouTube",
+                        "유튜브 자동화를 통해 첫 번째 영상 링크를 추출하여 곡제목에 하이퍼링크로 삽입합니다."
+                    )
+                )
+
+                linkOptions.forEach { (key, label, description) ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .selectable(
+                                selected = (musicLinkOption == key),
+                                onClick = {
+                                    musicLinkOption = key
+                                    settings.musicLinkOption = key
+                                }
+                            )
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        RadioButton(
+                            selected = (musicLinkOption == key),
+                            onClick = {
+                                musicLinkOption = key
+                                settings.musicLinkOption = key
+                            },
+                            colors = RadioButtonDefaults.colors(
+                                selectedColor = PrimaryNeon,
+                                unselectedColor = TextSecondary
+                            )
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Column {
+                            Text(
+                                text = label,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (musicLinkOption == key) PrimaryNeon else TextPrimary
+                            )
+                            Spacer(modifier = Modifier.height(1.dp))
+                            Text(
+                                text = description,
+                                fontSize = 11.sp,
+                                color = TextSecondary,
+                                lineHeight = 15.sp
+                            )
+                        }
+                    }
+                }
             }
         }
 
@@ -458,6 +533,7 @@ fun SettingsScreen() {
                 settings.maxRetryCount = retry.coerceAtLeast(1)
                 settings.maxSongLogCount = maxSong.coerceAtLeast(10)
                 settings.albumArtOption = albumArtOption
+                settings.musicLinkOption = musicLinkOption
 
                 scope.launch(Dispatchers.IO) {
                     app.database.songResultDao().pruneOldSongs(settings.maxSongLogCount)

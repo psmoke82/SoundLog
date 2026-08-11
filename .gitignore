@@ -12,3 +12,5 @@ local.properties
 /releases/
 /release/
 *.apk
+/cr/
+cr/
