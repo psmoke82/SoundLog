@@ -12,13 +12,24 @@
 
 ## 🌟 주요 특징 (Key Features)
 
+- 🔗 **유튜브 링크 자동 추출 및 Focus Shift (`v1.0.32`)**:
+  - 유튜브 첫 번째 영상 검색 링크를 자동 추출하여 텔레그램 메시지의 곡명에 하이퍼링크(`<a href="...">`)로 연동.
+  - Android 10+ 보안 제한을 우회하는 **Window Focus Shift** 구조를 적용하여 링크 복사 직후 SoundLog로 화면 포커스를 우선 가져온 뒤 클립보드 실제 URL(`https://youtu.be/...`) 100% 추출.
+  - `KEYCODE_MEDIA_PAUSE` 및 연속 3회 `GLOBAL_ACTION_BACK`으로 유튜브 앱 완전 종료 및 PiP(Picture-in-Picture) 창 지속 재생 완벽 방지.
+
+- 🖼️ **앨범 자켓 이미지 전송 사용자 옵션 3종**:
+  - 🔘 `미전송`: 텍스트 형태 메시지만 전송.
+  - 🔘 `Shazam`: 샤잠 앱 상세 화면 스와이프를 통한 앨범 자켓 스크린샷 이미지 전송.
+  - 🔘 `iTunes API`: iTunes Open API를 통한 1000x1000 고화질 원본 커버아트 획득 및 전송 (실패 시 자동 fallback).
+
 - 🔄 **24시간 상시 백그라운드 구동 (`Foreground Service` & `WakeLock`)**:
   - 시스템에 의한 강제 종료를 방지하는 상단 고정 Notification 탑재.
-  - 인식 주기(기본 5분) 도달 시에만 화면을 ON하고 Shazam 인식 완료 즉시 화면 OFF 및 `WakeLock`을 필수 해제하여 배터리/발열 최소화.
+  - 인식 주기(기본 2분) 도달 시에만 화면을 ON하고 Shazam 인식 완료 즉시 화면 OFF 및 `WakeLock`을 필수 해제하여 배터리/발열 최소화.
 
 - 🤖 **Shazam 접근성 자동화 (`AccessibilityService`)**:
   - 좌표 방식이 아닌 **5단계 Fallback 노드 검색 기술** 적용 (`viewId` ➔ `contentDescription` ➔ `text` ➔ `clickable` ➔ `Gesture Tap`).
-  - **동적 타임아웃(Dynamic Timeout)**: 최대 대기시간(기본 12초) 내 결과 감지 시 즉시 조기 종료하여 빠른 처리 보장.
+  - **동적 타임아웃(Dynamic Timeout)**: 최대 대기시간(기본 30초) 내 결과 감지 시 즉시 조기 종료하여 빠른 처리 보장.
+
 
 - 🎼 **곡명 정규화 & 중복 발송 방지**:
   - 특수문자/공백 제거 및 대소문자 정규화 (`Artist|Title`).
@@ -103,10 +114,12 @@
 
 | 설정 항목 | 기본값 | 설명 |
 | :--- | :---: | :--- |
-| **인식 주기 (Interval)** | `5분` | Shazam을 자동 실행하여 음악을 식별하는 주기 |
-| **최대 타임아웃 (Timeout)** | `12초` | Shazam 결과 노드를 기다리는 최대 동적 대기시간 |
+| **인식 주기 (Interval)** | `2분` | Shazam을 자동 실행하여 음악을 식별하는 주기 |
+| **최대 타임아웃 (Timeout)** | `30초` | Shazam 및 결과 노드를 기다리는 최대 동적 대기시간 |
 | **중복 방지 시간 (Dedup Window)** | `10분` | 동일한 곡이 연속 인식될 경우 발송을 스킵하는 시간 범위 |
-| **Telegram 재시도 횟수** | `3회` | 통신 장애 시 큐(`PENDING`) 저장 후 최대 재전송 시도 횟수 |
+| **Telegram 재시도 횟수** | `2회` | 통신 장애 시 큐(`PENDING`) 저장 후 최대 재전송 시도 횟수 |
+| **앨범 아트 옵션** | `미전송 / Shazam / iTunes API` | 텔레그램 메시지와 함께 송신할 커버 아트 옵션 |
+| **음악 링크 옵션** | `미전송 / YouTube` | 곡명 클릭 시 이동할 하이퍼링크 추출 옵션 |
 
 ---
 
@@ -117,7 +130,8 @@
 - **Database**: Room Database 2.6.1
 - **Security**: AndroidX Security Crypto (EncryptedSharedPreferences)
 - **Network**: Retrofit 2.9.0, OkHttp 4.12.0, Gson
-- **Background**: Android AccessibilityService, Foreground Service, Coroutines & Flow
+- **Automation**: Android AccessibilityService, YouTube Focus Shift & KeyEvent, Coroutines & Flow
+
 
 ---
 

@@ -17,12 +17,16 @@
    - 사용자가 "배포해줘", "릴리즈해줘", "버전 올려서 깃허브 등록해줘" 등 **명시적으로 릴리즈를 요청할 때에만** 아래 일련의 릴리즈 작업을 한 번에 수행합니다:
      1. 누적 변경사항 `git add .` 및 `git commit -m "..."` (`releases/` 폴더 내 산출물은 `.gitignore` 처리되어 Git 커밋/푸시 대상에서 제외)
      2. 현재 Git 커밋 수(`git rev-list --count HEAD`) 기반으로 버전 산출 (`v1.0.[커밋수]`)
-     3. APK 자동 빌드 후 로컬 `releases/SoundLog-v1.0.[커밋수]-rel.apk`로 저장
-     4. `git push origin main` 소스코드 푸시 (`releases/` 폴더 파일은 git에 푸시하지 않고 배제)
-     5. 버전 태그(`v1.0.[커밋수]`) 생성 및 `git push origin --tags` 푸시
-     6. `CHANGELOG.md` 문서에 묶인 마이너 개선 내역 한눈에 정리
-     7. GitHub Release 게시 (Release 제목/Title은 수식어 없이 앱이름과 버전명만 사용, 예: `--title "SoundLog v1.0.21"`) 및 **GitHub의 Release 탭에만 최종 빌드된 APK 파일 업로드**
-     8. **릴리즈 링크 및 웹 페이지 생존 직접 검증**: `git push` 및 `gh release` 등록 후, 해당 릴리즈 페이지 URL 및 다운로드 링크가 실제로 정상 작동(HTTP 200 또는 `gh release view` 확인)하는지 최종 직접 확인한 후에만 사용자에게 릴리즈 링크, APK 다운로드 링크, Release Notes 전문을 알림 제공.
+     3. **버전 연동 필수 갱신**:
+        - 설정 화면 하단 버전 표시 (`SettingsScreen.kt`)를 이번 릴리즈 버전명(`v1.0.[커밋수]`)으로 갱신
+        - `README.md` 문서 내 최신 버전 및 릴리즈 내역 갱신
+     4. APK 자동 빌드 후 로컬 `releases/SoundLog-v1.0.[커밋수]-rel.apk`로 저장
+     5. `git push origin main` 소스코드 푸시 (`releases/` 폴더 파일은 git에 푸시하지 않고 배제)
+     6. 버전 태그(`v1.0.[커밋수]`) 생성 및 `git push origin --tags` 푸시
+     7. `CHANGELOG.md` 문서에 묶인 마이너 개선 내역 한눈에 정리
+     8. GitHub Release 게시 (Release 제목/Title은 수식어 없이 앱이름과 버전명만 사용, 예: `--title "SoundLog v1.0.21"`) 및 **GitHub의 Release 탭에만 최종 빌드된 APK 파일 업로드**
+     9. **릴리즈 링크 및 웹 페이지 생존 직접 검증**: `git push` 및 `gh release` 등록 후, 해당 릴리즈 페이지 URL 및 다운로드 링크가 실제로 정상 작동(HTTP 200 또는 `gh release view` 확인)하는지 최종 직접 확인한 후에만 사용자에게 릴리즈 링크, APK 다운로드 링크, Release Notes 전문을 알림 제공.
+
 
 4. **릴리즈 문제 발생 원인 및 예방 트러블슈팅 규칙 (Troubleshooting Checklist)**:
    - **인증 토큰 오염 방지 (`401 Bad credentials`)**:
