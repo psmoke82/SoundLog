@@ -38,35 +38,32 @@
 ```text
 [ 관리자 전용 Android 공기계 (24시간 상시 가동) ]
 
-  [ Foreground Service ] <-----------------------------------+ (상태 감시)
-          |                                                  |
-          v (인식 주기 도달)                                 |
-      Scheduler -- (WakeLock 획득 / 화면 ON)                 |
-          |                                                  |
-          v                                                  |
-  [ AccessibilityService ]                                   |
-          |                                                  |
-          +--> 1. Shazam 앱 자동 실행                        |
-          +--> 2. 5단계 Fallback 노드 탐색 & 클릭            | [ Watchdog ]
-          +--> 3. 동적 타임아웃 응답 수음                    | (3회 연속 실패 시
-          |                                                  |  강제종료 & 복구)
-          v                                                  |
-    Artist / Title 추출                                      |
-          |                                                  |
-          v                                                  |
-   SongKey 정규화 & 중복 검사 (10분 이내 동일곡 스킵)          |
-          |                                                  |
-          v                                                  |
-   [ Room DB ] (SongResult & ExecutionLog 저장)              |
-          |                                                  |
-          v                                                  |
-   [ Telegram Queue ] -- (성공: SENT / 실패: PENDING)         |
-          |                                                  |
-          v (HTTP POST)                                      |
-   [ Telegram Bot API ] <------------------------------------+
-          |
-          v
-  [ 텔레그램 채널/그룹 메시지 전송 (유튜브 링크 포함) ]
+  ① [ Foreground Service ] (24시간 백그라운드 서비스 상시 감시)
+          │
+          ▼ (인식 주기 도달)
+  ② [ Scheduler & WakeLock ] (화면 잠시 ON 및 자원 획득)
+          │
+          ▼
+  ③ [ AccessibilityService ] (Shazam 자동화 수음 처리)
+          ├─► 1. Shazam 앱 자동 실행
+          ├─► 2. 5단계 Fallback 노드 탐색 및 자동 클릭
+          └─► 3. 동적 타임아웃 감지 & Artist / Title 추출
+          │
+          ▼
+  ④ [ 곡명 정규화 & 중복 검사 ] (10분 이내 동일 곡 중복 발송 스킵)
+          │
+          ▼
+  ⑤ [ Room DB 저장 ] (SongResult & ExecutionLog 데이터 저장)
+          │
+          ▼
+  ⑥ [ Telegram Queue ] (성공: SENT / 실패 시 PENDING 저장)
+          │
+          ▼ (HTTP POST 연동)
+  ⑦ [ Telegram Bot API ] ──► 📢 텔레그램 채널/그룹 자동 공유 (유튜브 링크 연동)
+
+─────────────────────────────────────────────────────────────────
+🛡️ [ Watchdog 자동 복구 시스템 ]
+  - 수음/자동화 3회 연속 실패 감지 시 Shazam 프로세스 강제 종료 후 순차 자체 자동 복구
 ```
 
 ---
