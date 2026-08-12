@@ -17,7 +17,6 @@
     <!-- Package Visibility Queries for Android 11+ -->
     <queries>
         <package android:name="com.shazam.android" />
-        <package android:name="com.google.android.youtube" />
     </queries>
 
     <application

@@ -12,8 +12,8 @@ android {
         applicationId = "com.soundlog.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 32
-        versionName = "1.0.32"
+        versionCode = 35
+        versionName = "1.0.35"
 
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
