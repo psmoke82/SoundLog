@@ -37,25 +37,25 @@
 
 ```mermaid
 flowchart TD
-    subgraph Device["📱 Android 공기계 (24시간 상시 가동)"]
-        FS["Foreground Service<br/>(상태 감시)"] -->|인식 주기 도달| SCH["Scheduler<br/>(WakeLock 획득 / 화면 ON)"]
-        SCH --> ACC["AccessibilityService<br/>(Shazam 자동화)"]
+    subgraph Device["Android 공기계 (24시간 상시 가동)"]
+        FS["Foreground Service (상태 감시)"] --> SCH["Scheduler (WakeLock / 화면 ON)"]
+        SCH --> ACC["AccessibilityService (Shazam 자동화)"]
         
-        subgraph Automation["🤖 Shazam 자동 인식"]
-            ACC -->|① 실행| SHZ["Shazam App"]
-            ACC -->|② 5단계 Fallback 노드 탐색| TAP["자동 클릭 & 수음"]
-            ACC -->|③ 동적 타임아웃 감지| RES["Artist / Title 추출"]
+        subgraph Automation["Shazam 자동 인식"]
+            ACC --> SHZ["1. Shazam App 실행"]
+            SHZ --> TAP["2. 5단계 Fallback 노드 클릭"]
+            TAP --> RES["3. Artist 및 Title 추출"]
         end
         
-        RES --> NORM["곡명 정규화 & 중복 검사<br/>(10분 이내 중복 스킵)"]
-        NORM --> DB[("Room DB<br/>(SongResult & ExecutionLog)")]
-        DB --> QUEUE["Telegram Queue<br/>(성공: SENT / 실패: PENDING)"]
+        RES --> NORM["곡명 정규화 및 중복 검사"]
+        NORM --> DB[("Room DB")]
+        DB --> QUEUE["Telegram Queue"]
         
-        WD["🛡️ Watchdog<br/>(3회 연속 실패 시 프로세스 강제종료/복구)"] .-> ACC
+        WD["Watchdog (3회 연속 실패 시 복구)"] -.- ACC
     end
 
-    QUEUE -->|HTTP POST| BOT["🤖 Telegram Bot API"]
-    BOT --> CH["📢 텔레그램 채널/그룹<br/>(음악 정보 & 유튜브 링크 전송)"]
+    QUEUE -->|HTTP POST| BOT["Telegram Bot API"]
+    BOT --> CH["텔레그램 채널 / 그룹"]
 
     style Device fill:#f9f9f9,stroke:#333,stroke-width:1px
     style Automation fill:#e1f5fe,stroke:#0288d1,stroke-width:1px
