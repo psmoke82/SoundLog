@@ -35,32 +35,38 @@
 
 ## 🏗️ 시스템 동작 아키텍처
 
-```mermaid
-flowchart TD
-    subgraph Device["Android 공기계 (24시간 상시 가동)"]
-        FS["Foreground Service (상태 감시)"] --> SCH["Scheduler (WakeLock / 화면 ON)"]
-        SCH --> ACC["AccessibilityService (Shazam 자동화)"]
-        
-        subgraph Automation["Shazam 자동 인식"]
-            ACC --> SHZ["1. Shazam App 실행"]
-            SHZ --> TAP["2. 5단계 Fallback 노드 클릭"]
-            TAP --> RES["3. Artist 및 Title 추출"]
-        end
-        
-        RES --> NORM["곡명 정규화 및 중복 검사"]
-        NORM --> DB[("Room DB")]
-        DB --> QUEUE["Telegram Queue"]
-        
-        WD["Watchdog (3회 연속 실패 시 복구)"] -.- ACC
-    end
+```text
+[ 관리자 전용 Android 공기계 (24시간 상시 가동) ]
 
-    QUEUE -->|HTTP POST| BOT["Telegram Bot API"]
-    BOT --> CH["텔레그램 채널 / 그룹"]
-
-    style Device fill:#f9f9f9,stroke:#333,stroke-width:1px
-    style Automation fill:#e1f5fe,stroke:#0288d1,stroke-width:1px
-    style BOT fill:#e8f5e9,stroke:#388e3c,stroke-width:1px
-    style CH fill:#fff3e0,stroke:#f57c00,stroke-width:1px
+  [ Foreground Service ] ◄──────────────────────────┐ (상태 감시)
+          │                                         │
+          ▼ (인식 주기 도달)                        │
+      Scheduler ───(WakeLock 획득 / 화면 ON)         │
+          │                                         │
+          ▼                                         │
+  [ AccessibilityService ]                          │
+          │                                         │
+          ├─► ① Shazam 앱 자동 실행                 │
+          ├─► ② 5단계 Fallback 노드 탐색 & 클릭     │ [ Watchdog ]
+          └─► ③ 동적 타임아웃 응답 수음             │ (3회 연속 실패 시
+          │                                         │  강제종료 & 복구)
+          ▼                                         │
+    Artist / Title 추출                             │
+          │                                         │
+          ▼                                         │
+   SongKey 정규화 & 중복 검사 (10분 이내 동일곡 스킵) │
+          │                                         │
+          ▼                                         │
+   [ Room DB ] (SongResult & ExecutionLog 저장)     │
+          │                                         │
+          ▼                                         │
+   [ Telegram Queue ] ──(성공: SENT / 실패: PENDING)│
+          │                                         │
+          ▼ (HTTP POST)                             │
+   [ Telegram Bot API ] ────────────────────────────┴───────────────────┘
+          │
+          ▼
+  [ 텔레그램 채널/그룹 메시지 전송 (유튜브 링크 포함) ]
 ```
 
 ---
