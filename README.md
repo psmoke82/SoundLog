@@ -12,81 +12,55 @@
 
 ## 🌟 주요 특징 (Key Features)
 
-- 🎨 **앱 아이콘 & 브랜드 테마 리뉴얼 (`v1.0.35`)**:
-  - 새로 디자인된 전용 앱 런처 아이콘(`ic_launcher`) 및 브랜드 테마 컬러 반영.
-
-- 🔗 **유튜브 검색 링크 직접 연동 (`v1.0.35`)**:
-  - 기존 앱 자동화의 복잡성을 개선하여 곡명 및 아티스트 기반의 유튜브 검색 URL(`https://www.youtube.com/results?search_query=...`)을 즉시 생성 및 연동.
-  - 앱 간 포커스 이동 지연이나 클립보드 접근 문제 없이 100% 안정적이고 빠르게 유튜브 음악 링크 제공.
-
-- 🖼️ **앨범 자켓 이미지 전송 사용자 옵션 3종**:
-  - 🔘 `미전송`: 텍스트 형태 메시지만 전송.
-  - 🔘 `Shazam`: 샤잠 앱 상세 화면 스와이프를 통한 앨범 자켓 스크린샷 이미지 전송.
-  - 🔘 `iTunes API`: iTunes Open API를 통한 1000x1000 고화질 원본 커버아트 획득 및 전송 (실패 시 자동 fallback).
-
-- 🔄 **24시간 상시 백그라운드 구동 (`Foreground Service` & `WakeLock`)**:
-  - 시스템에 의한 강제 종료를 방지하는 상단 고정 Notification 탑재.
-  - 인식 주기(기본 2분) 도달 시에만 화면을 ON하고 Shazam 인식 완료 즉시 화면 OFF 및 `WakeLock`을 필수 해제하여 배터리/발열 최소화.
-
+- 🔗 **유튜브 검색 링크 자동 연동**:
+  - 곡명과 아티스트 기반으로 유튜브 검색 URL(`https://www.youtube.com/results?search_query=...`)을 즉시 생성 및 텔레그램 메시지에 하이퍼링크 연동.
+- 🎨 **앱 아이콘 & 브랜드 테마 리뉴얼**:
+  - 새로 디자인된 전용 앱 런처 아이콘(`ic_launcher`) 및 시각적 완성도를 높인 브랜드 테마 컬러 적용.
+- 🖼️ **앨범 자켓 이미지 전송 (3종 옵션)**:
+  - `미전송` / `Shazam 스크린샷` / `iTunes API(1000x1000 고화질 CoverArt)` 선택 전송 기능 제공.
+- 🔄 **24시간 백그라운드 구동 & 배터리 최적화**:
+  - Foreground Service 및 WakeLock 최적화를 적용하여, 인식 주기(기본 2분)에만 화면을 켜고 인식 즉시 해제하여 배터리/발열 최소화.
 - 🤖 **Shazam 접근성 자동화 (`AccessibilityService`)**:
-  - 좌표 방식이 아닌 **5단계 Fallback 노드 검색 기술** 적용 (`viewId` ➔ `contentDescription` ➔ `text` ➔ `clickable` ➔ `Gesture Tap`).
-  - **동적 타임아웃(Dynamic Timeout)**: 최대 대기시간(기본 30초) 내 결과 감지 시 즉시 조기 종료하여 빠른 처리 보장.
-
-
+  - 5단계 Fallback 노드 탐색 기술과 동적 타임아웃(Dynamic Timeout)을 통해 빠른 음악 수음 및 인식 보장.
 - 🎼 **곡명 정규화 & 중복 발송 방지**:
-  - 특수문자/공백 제거 및 대소문자 정규화 (`Artist|Title`).
-  - 지정된 시간(기본 10분) 이내 동일한 곡이 중복 인식될 경우 텔레그램 발송 자동 스킵.
-
-- 📦 **Room DB & 오프라인 전송 큐 (`Telegram Queue`)**:
-  - Wi-Fi 일시 단선 등 네트워크 장애 시 Room DB에 `PENDING` 상태로 안전하게 저장 후 지연 재시도.
-  - Android Keystore (`EncryptedSharedPreferences`)를 사용하여 Telegram Bot Token 및 Chat ID를 안전하게 암호화 보관.
-
-- 🛡️ **자체 장애 복구 Watchdog & 부팅 자동 시작 (`BootReceiver`)**:
-  - 3회 연속 자동화/시스템 실패 시 Shazam 앱 데이터/프로세스 강제 종료 후 자체 복구.
-  - 단말기 재부팅(`ACTION_BOOT_COMPLETED`) 시 별도 조작 없이 자동으로 서비스 시작.
-
-- 📱 **관리자 전용 대시보드 UI (Jetpack Compose)**:
-  - 🟢/🔴 서비스 실시간 동작 제어 스위치.
-  - **앱 수행 필수 체크리스트**: Shazam 미설치 시 플레이스토어 바로가기, 접근성/배터리/알림/그리기 권한 미설정 시 관련 설정 화면 직통 바로가기 제공.
-  - `[지금 인식 테스트]`, `[Telegram 테스트]`, `[서비스 재시작]` 유틸리티 기능.
-  - 스텝별 음악 인식 성공/실패 실행 로그 모니터링 화면 제공.
+  - 특수문자/공백 정규화 및 설정된 이력 시간(기본 10분) 내 동일한 곡 중복 인식 시 텔레그램 발송 자동 스킵.
+- 📦 **오프라인 전송 큐 & 보안 암호화**:
+  - 네트워크 단선 시 Room DB 내 전송 큐(`PENDING`) 저장 후 자동 재시도하며, Bot Token 및 Chat ID는 EncryptedSharedPreferences로 암호화 보관.
+- 🛡️ **자체 장애 복구 Watchdog & 부팅 자동 시작**:
+  - 3회 연속 인식 실패 시 Shazam 프로세스 강제 종료 후 자체 복구하며, 단말기 재부팅(`ACTION_BOOT_COMPLETED`) 시 자동으로 서비스 시작.
+- 📱 **Compose 관리자 대시보드 UI**:
+  - 실시간 서비스 제어, 필수 권한 체크리스트 바로가기, 수동 테스트 기능 및 스텝별 실시간 로그 모니터링 화면 제공.
 
 ---
 
 ## 🏗️ 시스템 동작 아키텍처
 
-```text
-[ 관리자 전용 Android 공기계 (24시간 상시 가동) ]
-                                                                         
-  [ Foreground Service ] ◄──────────────────────────┐ (상태 감시)
-          │                                         │
-          ▼ (3~5분 주기)                            │
-      Scheduler ───(WakeLock 짧게 획득 / 화면 ON)    │
-          │                                         │
-          ▼                                         │
-  [ AccessibilityService ]                          │
-          │                                         │
-          ├─► ① Shazam 앱 자동 실행                 │
-          ├─► ② 5단계 Fallback 노드 탐색 & 클릭     │ [ Watchdog ]
-          └─► ③ 동적 타임아웃(최대 12초) 응답 수음   │ (3회 연속 실패 시
-          │                                         │  강제종료 & 복구)
-          ▼                                         │
-    Artist / Title 추출                             │
-          │                                         │
-          ▼                                         │
-   SongKey 정규화 & 중복 검사 (10분 이내 동일곡 스킵) │
-          │                                         │
-          ▼                                         │
-   [ Room DB ] (SongResult & ExecutionLog 저장)     │
-          │                                         │
-          ▼                                         │
-   [ Telegram Queue ] ──(성공: SENT / 실패: PENDING)│
-          │                                         │
-          ▼ (HTTP POST)                             │
-   [ Telegram Bot API ] ────────────────────────────┴───────────────────┘
-          │
-          ▼
-  [ 텔레그램 채널/그룹 메시지 전송 ]
+```mermaid
+flowchart TD
+    subgraph Device["📱 Android 공기계 (24시간 상시 가동)"]
+        FS["Foreground Service<br/>(상태 감시)"] -->|인식 주기 도달| SCH["Scheduler<br/>(WakeLock 획득 / 화면 ON)"]
+        SCH --> ACC["AccessibilityService<br/>(Shazam 자동화)"]
+        
+        subgraph Automation["🤖 Shazam 자동 인식"]
+            ACC -->|① 실행| SHZ["Shazam App"]
+            ACC -->|② 5단계 Fallback 노드 탐색| TAP["자동 클릭 & 수음"]
+            ACC -->|③ 동적 타임아웃 감지| RES["Artist / Title 추출"]
+        end
+        
+        RES --> NORM["곡명 정규화 & 중복 검사<br/>(10분 이내 중복 스킵)"]
+        NORM --> DB[("Room DB<br/>(SongResult & ExecutionLog)")]
+        DB --> QUEUE["Telegram Queue<br/>(성공: SENT / 실패: PENDING)"]
+        
+        WD["🛡️ Watchdog<br/>(3회 연속 실패 시 프로세스 강제종료/복구)"] .-> ACC
+    end
+
+    QUEUE -->|HTTP POST| BOT["🤖 Telegram Bot API"]
+    BOT --> CH["📢 텔레그램 채널/그룹<br/>(음악 정보 & 유튜브 링크 전송)"]
+
+    style Device fill:#f9f9f9,stroke:#333,stroke-width:1px
+    style Automation fill:#e1f5fe,stroke:#0288d1,stroke-width:1px
+    style BOT fill:#e8f5e9,stroke:#388e3c,stroke-width:1px
+    style CH fill:#fff3e0,stroke:#f57c00,stroke-width:1px
 ```
 
 ---
