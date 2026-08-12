@@ -4,6 +4,7 @@
 
 1. **개발 및 소스 수정 단계 (수동 배포 모드)**:
    - 사용자의 개별 수정/개선 요청 시에는 매번 버전업, 깃허브 푸시, 릴리즈를 수행하지 않고 소스코드 변경사항을 누적합니다.
+   - **소소한 변경/개선 시에도 `CHANGELOG.md` 미확정 영역에 즉시 실시간 기록**: UI 수정, 자원 변경(mipmap, xml 등), 버그 수정, 설정 변경 등이 발생할 때마다 `CHANGELOG.md` 상단에 수정을 한 줄로 즉시 기록하여 누락을 방지합니다.
 
 2. **코드 수정 후 테스트 빌드 제공 (Test Build)**:
    - 사용자의 개선/수정 요청에 따른 소스 변경 완료 후, 아래 절차로 테스트용 APK를 빌드하여 사용자에게 제공합니다:
@@ -15,19 +16,20 @@
 
 3. **명시적 릴리즈/배포 요청 시 일괄 작업 (Batch Release)**:
    - 사용자가 "배포해줘", "릴리즈해줘", "버전 올려서 깃허브 등록해줘" 등 **명시적으로 릴리즈를 요청할 때에만** 아래 일련의 릴리즈 작업을 한 번에 수행합니다:
-     1. 누적 변경사항 `git add .` 및 `git commit -m "..."` (`releases/` 폴더 내 산출물은 `.gitignore` 처리되어 Git 커밋/푸시 대상에서 제외)
-     2. **동적 버전 산출 규칙 (`v[Major].[Minor].[커밋수]`)**:
+     1. **`git log [직전태그]..HEAD` 및 `git status / diff --stat` 전수검사 필수 실행**: 직전 릴리즈 이후 변경된 모든 커밋과 파일 변경 목록을 100% 교차 검증하여 `CHANGELOG.md` 및 `README.md`에 단 하나의 누락도 없이 포함시킵니다.
+     2. 누적 변경사항 `git add .` 및 `git commit -m "..."` (`releases/` 폴더 내 산출물은 `.gitignore` 처리되어 Git 커밋/푸시 대상에서 제외)
+     3. **동적 버전 산출 규칙 (`v[Major].[Minor].[커밋수]`)**:
         - 기본 버전 형식은 `v[Major].[Minor].[커밋수]` (예: 현재 `v1.0.[커밋수]`)를 따르며, 패치 버전 숫자는 현재 Git 커밋 수(`git rev-list --count HEAD`) 기반으로 자동 산출합니다.
         - 사용자가 Major/Minor 버전 상향을 명시할 경우(예: v1.1, v2.0 등), 지정된 버전 숫자를 기반으로 산출합니다 (예: `v1.1.[커밋수]`).
-     3. **버전 연동 필수 갱신**:
+     4. **버전 연동 필수 갱신**:
         - 설정 화면 하단 버전 표시 (`SettingsScreen.kt`)를 이번 릴리즈 버전명(`v[Major].[Minor].[커밋수]`)으로 갱신
         - `README.md` 문서 내 최신 버전 및 릴리즈 내역 갱신
-     4. APK 자동 빌드 후 로컬 `releases/SoundLog-v[Major].[Minor].[커밋수]-rel.apk`로 저장
-     5. `git push origin main` 소스코드 푸시 (`releases/` 폴더 파일은 git에 푸시하지 않고 배제)
-     6. 버전 태그(`v[Major].[Minor].[커밋수]`) 생성 및 `git push origin --tags` 푸시
-     7. `CHANGELOG.md` 문서에 묶인 마이너 개선 내역 한눈에 정리
-     8. GitHub Release 게시 (Release 제목/Title은 수식어 없이 앱이름과 버전명만 사용, 예: `--title "SoundLog v1.0.21"`) 및 **GitHub의 Release 탭에만 최종 빌드된 APK 파일 업로드**
-     9. **릴리즈 링크 및 웹 페이지 생존 직접 검증**: `git push` 및 `gh release` 등록 후, 해당 릴리즈 페이지 URL 및 다운로드 링크가 실제로 정상 작동(HTTP 200 또는 `gh release view` 확인)하는지 최종 직접 확인한 후에만 사용자에게 릴리즈 링크, APK 다운로드 링크, Release Notes 전문을 알림 제공.
+     5. APK 자동 빌드 후 로컬 `releases/SoundLog-v[Major].[Minor].[커밋수]-rel.apk`로 저장
+     6. `git push origin main` 소스코드 푸시 (`releases/` 폴더 파일은 git에 푸시하지 않고 배제)
+     7. 버전 태그(`v[Major].[Minor].[커밋수]`) 생성 및 `git push origin --tags` 푸시
+     8. `CHANGELOG.md` 문서에 전수검사된 전체 개선 내역 정리
+     9. GitHub Release 게시 (Release 제목/Title은 수식어 없이 앱이름과 버전명만 사용, 예: `--title "SoundLog v1.0.21"`) 및 **GitHub의 Release 탭에만 최종 빌드된 APK 파일 업로드**
+     10. **릴리즈 링크 및 웹 페이지 생존 직접 검증**: `git push` 및 `gh release` 등록 후, 해당 릴리즈 페이지 URL 및 다운로드 링크가 실제로 정상 작동(HTTP 200 또는 `gh release view` 확인)하는지 최종 직접 확인한 후에만 사용자에게 릴리즈 링크, APK 다운로드 링크, Release Notes 전문을 알림 제공.
 
 
 4. **릴리즈 문제 발생 원인 및 예방 트러블슈팅 규칙 (Troubleshooting Checklist)**:
