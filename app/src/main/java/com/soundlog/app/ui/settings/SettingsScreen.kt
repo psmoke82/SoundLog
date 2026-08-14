@@ -383,7 +383,7 @@ fun SettingsScreen() {
                     Triple(
                         EncryptedSettingsRepository.MUSIC_LINK_YOUTUBE,
                         "2. YouTube",
-                        "유튜브 자동화를 통해 첫 번째 영상 링크를 추출하여 곡제목에 하이퍼링크로 삽입합니다."
+                        "아티스트와 곡명 기반의 유튜브 검색 링크를 생성하여 곡 제목에 하이퍼링크로 삽입합니다."
                     )
                 )
 
@@ -537,7 +537,7 @@ fun SettingsScreen() {
 
                 scope.launch(Dispatchers.IO) {
                     app.database.songResultDao().pruneOldSongs(settings.maxSongLogCount)
-                    app.database.executionLogDao().pruneOldLogs(1000)
+                    app.database.executionLogDao().pruneOldLogs(10000)
                 }
 
                 Toast.makeText(context, "설정이 성공적으로 저장되었습니다.", Toast.LENGTH_SHORT).show()
@@ -556,11 +556,17 @@ fun SettingsScreen() {
         val appVersionName = remember {
             try {
                 val pInfo = context.packageManager.getPackageInfo(context.packageName, 0)
-                "SoundLog v${pInfo.versionName}"
+                val verName = if (pInfo.versionName.startsWith("v")) pInfo.versionName else "v${pInfo.versionName}"
+                val buildCode = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                    pInfo.longVersionCode
+                } else {
+                    @Suppress("DEPRECATION") pInfo.versionCode.toLong()
+                }
+                val dateStr = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.KOREA).format(java.util.Date(pInfo.lastUpdateTime))
+                "SoundLog $verName (Build $buildCode)·$dateStr"
             } catch (e: Exception) {
-                "SoundLog v1.0.35"
+                "SoundLog v1.2.1 (Build 46)·2026-08-14"
             }
-
         }
 
         androidx.compose.foundation.layout.Box(

@@ -102,6 +102,20 @@ fun DashboardScreen(onNavigateToLogs: () -> Unit = {}) {
     val statusState by app.database.serviceStatusDao().getStatusFlow()
         .collectAsState(initial = null)
 
+    val todayStart = remember {
+        java.util.Calendar.getInstance().apply {
+            set(java.util.Calendar.HOUR_OF_DAY, 0)
+            set(java.util.Calendar.MINUTE, 0)
+            set(java.util.Calendar.SECOND, 0)
+            set(java.util.Calendar.MILLISECOND, 0)
+        }.timeInMillis
+    }
+
+    val todaySuccessCount by app.database.executionLogDao().getTodaySuccessCountFlow(todayStart)
+        .collectAsState(initial = 0)
+    val todayFailureCount by app.database.executionLogDao().getTodayFailureCountFlow(todayStart)
+        .collectAsState(initial = 0)
+
     var isTestingRecognition by remember { mutableStateOf(false) }
     var isTestingTelegram by remember { mutableStateOf(false) }
     var serviceEnabled by remember { mutableStateOf(settings.isServiceEnabled) }
@@ -349,7 +363,7 @@ fun DashboardScreen(onNavigateToLogs: () -> Unit = {}) {
         ) {
             StatCard(
                 title = "오늘 식별 성공",
-                value = "${statusState?.todaySuccessCount ?: 0}건",
+                value = "${todaySuccessCount}건",
                 color = AccentGreen,
                 icon = Icons.Default.CheckCircle,
                 modifier = Modifier
@@ -358,7 +372,7 @@ fun DashboardScreen(onNavigateToLogs: () -> Unit = {}) {
             )
             StatCard(
                 title = "오늘 식별 실패",
-                value = "${statusState?.todayFailureCount ?: 0}건",
+                value = "${todayFailureCount}건",
                 color = AccentRed,
                 icon = Icons.Default.Error,
                 modifier = Modifier

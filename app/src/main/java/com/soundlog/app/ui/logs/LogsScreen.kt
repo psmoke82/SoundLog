@@ -1,5 +1,9 @@
 package com.soundlog.app.ui.logs
 
+import android.content.Intent
+import android.net.Uri
+import androidx.compose.ui.platform.LocalContext
+import com.soundlog.app.automation.YouTubeNodeFinder
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -16,11 +20,15 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Search
@@ -74,12 +82,12 @@ fun LogsScreen() {
     val songs by app.database.songResultDao().getAllSongsFlow()
         .collectAsState(initial = emptyList())
 
-    // 식별 이력 중 실패 로그 (NO_MATCH, FAILURE) - SongResultEntity에 없는 실패 케이스용
-    val recognitionLogs by app.database.executionLogDao().getSongRecognitionLogsFlow(limit = 1000)
+    // 식별 이력 중 실패 로그 (NO_MATCH, FAILURE) - SongResultEntity에 없는 실패 케이스용 (10,000건)
+    val recognitionLogs by app.database.executionLogDao().getSongRecognitionLogsFlow(limit = 10000)
         .collectAsState(initial = emptyList())
 
-    // 앱 작동 로그 (시스템 로그만)
-    val systemLogs by app.database.executionLogDao().getSystemLogsFlow(limit = 1000)
+    // 앱 작동 로그 (시스템 로그만 - 10,000건)
+    val systemLogs by app.database.executionLogDao().getSystemLogsFlow(limit = 10000)
         .collectAsState(initial = emptyList())
 
     Column(
@@ -133,34 +141,109 @@ fun LogsScreen() {
     }
 }
 
+/** 식별 이력 통합 래퍼 모델 (성공 곡 vs 실패 로그) */
+sealed class RecognitionHistoryItem {
+    abstract val timestamp: Long
+    abstract val isSuccess: Boolean
+
+    data class SuccessSong(val song: SongResultEntity) : RecognitionHistoryItem() {
+        override val timestamp: Long get() = song.detectedAt
+        override val isSuccess: Boolean get() = song.telegramStatus == SongResultEntity.STATUS_SENT || song.telegramStatus == SongResultEntity.STATUS_PENDING
+    }
+
+    data class FailureLog(val log: ExecutionLogEntity) : RecognitionHistoryItem() {
+        override val timestamp: Long get() = log.timestamp
+        override val isSuccess: Boolean get() = false
+    }
+}
+
+/** 날짜별 그룹핑 데이터 구조체 */
+data class DateGroup(
+    val dateKey: String,
+    val displayDate: String,
+    val successCount: Int,
+    val failureCount: Int,
+    val items: List<RecognitionHistoryItem>
+)
+
 /**
- * 식별 이력 탭: SongResultEntity (성공/실패 음악) + NO_MATCH/FAILURE 로그
- * - SongResultEntity: 실제로 곡명/아티스트가 인식된 경우 (성공 or 텔레그램 실패)
- * - recognitionLogs: 음악 미인식 (NO_MATCH, FAILURE) 등
+ * 식별 이력 탭: SongResultEntity (성공 음악) + NO_MATCH/FAILURE 로그 통합 날짜별 그룹핑 리스트
  */
 @Composable
 fun SongHistoryList(songs: List<SongResultEntity>, recognitionLogs: List<ExecutionLogEntity>) {
     var searchQuery by remember { mutableStateOf("") }
+    val listState = rememberLazyListState()
 
-    // NO_MATCH/FAILURE 로그 중 SongResultEntity에 해당하지 않는 순수 실패 건만 분리
-    val noMatchLogs = remember(recognitionLogs) {
-        recognitionLogs.filter { it.step == "NO_MATCH" || it.step == "FAILURE" }
+    val dateKeySdf = remember { SimpleDateFormat("yyyy-MM-dd", Locale.KOREA) }
+    val displayDateSdf = remember { SimpleDateFormat("yyyy년 MM월 dd일 (E)", Locale.KOREA) }
+
+    val dateGroups = remember(songs, recognitionLogs, searchQuery) {
+        val songItems = songs.map { RecognitionHistoryItem.SuccessSong(it) }
+        val failureItems = recognitionLogs
+            .filter { it.step == "NO_MATCH" || it.step == "FAILURE" }
+            .map { RecognitionHistoryItem.FailureLog(it) }
+
+        val allItems = (songItems + failureItems).sortedByDescending { it.timestamp }
+
+        val filteredItems = if (searchQuery.isBlank()) {
+            allItems
+        } else {
+            allItems.filter { item ->
+                when (item) {
+                    is RecognitionHistoryItem.SuccessSong ->
+                        item.song.title.contains(searchQuery, ignoreCase = true) ||
+                        item.song.artist.contains(searchQuery, ignoreCase = true)
+                    is RecognitionHistoryItem.FailureLog ->
+                        item.log.message.contains(searchQuery, ignoreCase = true)
+                }
+            }
+        }
+
+        filteredItems
+            .groupBy { dateKeySdf.format(Date(it.timestamp)) }
+            .map { (dateKey, groupItems) ->
+                val firstTimestamp = groupItems.firstOrNull()?.timestamp ?: System.currentTimeMillis()
+                DateGroup(
+                    dateKey = dateKey,
+                    displayDate = displayDateSdf.format(Date(firstTimestamp)),
+                    successCount = groupItems.count { it.isSuccess },
+                    failureCount = groupItems.count { !it.isSuccess },
+                    items = groupItems
+                )
+            }
     }
 
-    val filteredSongs = remember(songs, searchQuery) {
-        if (searchQuery.isBlank()) songs
-        else songs.filter { song ->
-            song.title.contains(searchQuery, ignoreCase = true) ||
-            song.artist.contains(searchQuery, ignoreCase = true)
+    // 신규 곡 인식 또는 화면 로드 시 항상 최상단(최신순)으로 자동 스크롤
+    val latestTimestamp = remember(dateGroups) {
+        dateGroups.firstOrNull()?.items?.firstOrNull()?.timestamp ?: 0L
+    }
+    LaunchedEffect(latestTimestamp) {
+        if (latestTimestamp > 0L) {
+            listState.scrollToItem(0)
+        }
+    }
+
+    // 스마트 접기 관리:
+    // 기본값: 가장 최근 1개 일자(index 0)만 펼치고, 과거 일자(index >= 1)는 기본 접힘
+    // 검색 중에는 매칭 결과 표시를 위해 전체 펼침
+    var userCollapsedDates by remember { mutableStateOf<Set<String>?>(null) }
+    val effectiveCollapsedDates = remember(dateGroups, userCollapsedDates, searchQuery) {
+        if (searchQuery.isNotBlank()) {
+            emptySet()
+        } else if (userCollapsedDates != null) {
+            userCollapsedDates!!
+        } else {
+            // 최초 로드 시 최신 날짜 제외 과거 날짜는 기본 접힘
+            dateGroups.drop(1).map { it.dateKey }.toSet()
         }
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        // 검색창 (SongResultEntity 대상)
+        // 검색창
         OutlinedTextField(
             value = searchQuery,
             onValueChange = { searchQuery = it },
-            placeholder = { Text("곡 제목 또는 아티스트 검색...", color = TextMuted, fontSize = 13.sp) },
+            placeholder = { Text("곡 제목, 아티스트 또는 오류 내용 검색...", color = TextMuted, fontSize = 13.sp) },
             leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = PrimaryNeon) },
             trailingIcon = {
                 if (searchQuery.isNotEmpty()) {
@@ -187,7 +270,7 @@ fun SongHistoryList(songs: List<SongResultEntity>, recognitionLogs: List<Executi
             shape = RoundedCornerShape(12.dp)
         )
 
-        if (filteredSongs.isEmpty() && noMatchLogs.isEmpty()) {
+        if (dateGroups.isEmpty()) {
             Box(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
@@ -198,18 +281,47 @@ fun SongHistoryList(songs: List<SongResultEntity>, recognitionLogs: List<Executi
                 )
             }
         } else {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                // 인식 성공/텔레그램 상태 카드
-                if (filteredSongs.isNotEmpty()) {
-                    items(filteredSongs) { song ->
-                        SongHistoryItemCard(song = song)
-                    }
-                }
+            LazyColumn(
+                state = listState,
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxSize()
+            ) {
+                dateGroups.forEach { group ->
+                    val isCollapsed = effectiveCollapsedDates.contains(group.dateKey)
 
-                // 검색어 없을 때만 NO_MATCH/FAILURE 로그 표시
-                if (searchQuery.isBlank() && noMatchLogs.isNotEmpty()) {
-                    items(noMatchLogs) { log ->
-                        NoMatchLogCard(log = log)
+                    item(key = "header_${group.dateKey}") {
+                        DateGroupHeader(
+                            group = group,
+                            isCollapsed = isCollapsed,
+                            onToggle = {
+                                userCollapsedDates = if (isCollapsed) {
+                                    effectiveCollapsedDates - group.dateKey
+                                } else {
+                                    effectiveCollapsedDates + group.dateKey
+                                }
+                            }
+                        )
+                    }
+
+                    if (!isCollapsed) {
+                        items(
+                            items = group.items,
+                            key = { item ->
+                                when (item) {
+                                    is RecognitionHistoryItem.SuccessSong -> "song_${item.song.id}"
+                                    is RecognitionHistoryItem.FailureLog -> "log_${item.log.id}"
+                                }
+                            }
+                        ) { item ->
+                            when (item) {
+                                is RecognitionHistoryItem.SuccessSong -> {
+                                    SongHistoryItemCard(song = item.song)
+                                }
+                                is RecognitionHistoryItem.FailureLog -> {
+                                    NoMatchLogCard(log = item.log)
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -217,18 +329,129 @@ fun SongHistoryList(songs: List<SongResultEntity>, recognitionLogs: List<Executi
     }
 }
 
+/** 날짜별 그룹 구분선 및 접기/펼치기 헤더 (슬림 섹션 구분선 디자인) */
+@Composable
+fun DateGroupHeader(
+    group: DateGroup,
+    isCollapsed: Boolean,
+    onToggle: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 16.dp, bottom = 4.dp)
+            .clickable { onToggle() },
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // 좌측: 네온 테두리 날짜 배지 (토글 아이콘 포함)
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .background(PrimaryNeon.copy(alpha = 0.12f), RoundedCornerShape(8.dp))
+                .border(1.dp, PrimaryNeon.copy(alpha = 0.4f), RoundedCornerShape(8.dp))
+                .padding(horizontal = 9.dp, vertical = 5.dp)
+        ) {
+            Icon(
+                imageVector = if (isCollapsed) Icons.Default.ExpandMore else Icons.Default.ExpandLess,
+                contentDescription = if (isCollapsed) "펼치기" else "접기",
+                tint = PrimaryNeon,
+                modifier = Modifier.size(18.dp)
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = group.displayDate,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                color = PrimaryNeon
+            )
+        }
+
+        Spacer(modifier = Modifier.width(8.dp))
+
+        // 중앙: 은은한 수평 구분선 (Divider)
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .height(1.dp)
+                .background(CardBorder.copy(alpha = 0.8f))
+        )
+
+        Spacer(modifier = Modifier.width(8.dp))
+
+        // 우측: 캡슐형 성공/실패 뱃지
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(5.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (group.successCount > 0) {
+                Box(
+                    modifier = Modifier
+                        .background(AccentGreen.copy(alpha = 0.15f), RoundedCornerShape(12.dp))
+                        .border(1.dp, AccentGreen.copy(alpha = 0.45f), RoundedCornerShape(12.dp))
+                        .padding(horizontal = 7.dp, vertical = 2.5.dp)
+                ) {
+                    Text(
+                        text = "● 성공 ${group.successCount}",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = AccentGreen
+                    )
+                }
+            }
+            if (group.failureCount > 0) {
+                Box(
+                    modifier = Modifier
+                        .background(AccentRed.copy(alpha = 0.15f), RoundedCornerShape(12.dp))
+                        .border(1.dp, AccentRed.copy(alpha = 0.45f), RoundedCornerShape(12.dp))
+                        .padding(horizontal = 7.dp, vertical = 2.5.dp)
+                ) {
+                    Text(
+                        text = "● 실패 ${group.failureCount}",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = AccentRed
+                    )
+                }
+            }
+            if (isCollapsed) {
+                Text(
+                    text = "(접힘)",
+                    fontSize = 11.sp,
+                    color = TextMuted,
+                    modifier = Modifier.padding(start = 2.dp)
+                )
+            }
+        }
+    }
+}
+
 @Composable
 fun SongHistoryItemCard(song: SongResultEntity) {
-    var isExpanded by remember { mutableStateOf(false) }
+    val context = LocalContext.current
 
     Card(
         colors = CardDefaults.cardColors(containerColor = SurfaceDark),
         modifier = Modifier
             .fillMaxWidth()
             .border(1.dp, CardBorder, RoundedCornerShape(10.dp))
-            .clickable { isExpanded = !isExpanded }
+            .clickable {
+                val youtubeUrl = if (!song.youtubeUrl.isNullOrBlank()) {
+                    song.youtubeUrl
+                } else {
+                    YouTubeNodeFinder.buildYouTubeSearchUrl(song.artist, song.title)
+                }
+                try {
+                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(youtubeUrl)).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    context.startActivity(intent)
+                } catch (e: Exception) {
+                    android.util.Log.e("LogsScreen", "Failed to open YouTube URL: $youtubeUrl", e)
+                }
+            }
     ) {
         Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
+            // 상단: 곡 제목 (좌측) + 인식 일시 (우측)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -250,10 +473,38 @@ fun SongHistoryItemCard(song: SongResultEntity) {
                         fontWeight = FontWeight.Bold,
                         fontSize = 14.sp,
                         color = TextPrimary,
-                        maxLines = if (isExpanded) Int.MAX_VALUE else 1,
+                        maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+                Text(
+                    text = formatLogTimeFull(song.detectedAt),
+                    fontSize = 11.sp,
+                    color = TextMuted
+                )
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            // 하단: 아티스트명 (좌측) + 전송 성공/실패 뱃지 (우측)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = song.artist,
+                    fontSize = 13.sp,
+                    color = TextSecondary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(start = 24.dp)
+                )
 
                 Spacer(modifier = Modifier.width(8.dp))
 
@@ -271,45 +522,14 @@ fun SongHistoryItemCard(song: SongResultEntity) {
                 )
             }
 
-            Spacer(modifier = Modifier.height(2.dp))
-
-            Text(
-                text = song.artist,
-                fontSize = 13.sp,
-                color = TextSecondary,
-                maxLines = if (isExpanded) Int.MAX_VALUE else 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(start = 24.dp)
-            )
-
-            if (isExpanded) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        text = "인식 일시: ${formatLogTimeFull(song.detectedAt)}",
-                        fontSize = 11.sp,
-                        color = TextMuted
-                    )
-                    if (song.retryCount > 0) {
-                        Text(
-                            text = "재시도: ${song.retryCount}회",
-                            fontSize = 11.sp,
-                            color = AccentYellow
-                        )
-                    }
-                }
-
-                if (!song.errorMessage.isNullOrBlank()) {
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "오류 사유: ${song.errorMessage}",
-                        fontSize = 11.sp,
-                        color = AccentRed
-                    )
-                }
+            if (!song.errorMessage.isNullOrBlank()) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "오류 사유: ${song.errorMessage}",
+                    fontSize = 11.sp,
+                    color = AccentRed,
+                    modifier = Modifier.padding(start = 24.dp)
+                )
             }
         }
     }
@@ -347,7 +567,7 @@ fun NoMatchLogCard(log: ExecutionLogEntity) {
                         color = if (log.step == "FAILURE") AccentRed else AccentYellow
                     )
                     Text(
-                        text = formatLogTime(log.timestamp),
+                        text = formatLogTimeFull(log.timestamp),
                         fontSize = 11.sp,
                         color = TextMuted
                     )
@@ -455,6 +675,6 @@ private fun formatLogTime(timestamp: Long): String {
 }
 
 private fun formatLogTimeFull(timestamp: Long): String {
-    val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.KOREA)
+    val sdf = SimpleDateFormat("yy/MM/dd HH:mm:ss", Locale.KOREA)
     return sdf.format(Date(timestamp))
 }

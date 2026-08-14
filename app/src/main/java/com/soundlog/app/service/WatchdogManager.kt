@@ -37,7 +37,7 @@ class WatchdogManager(private val context: Context) {
                 isSuccess = true
             )
         )
-        logDao.pruneOldLogs(1000)
+        logDao.pruneOldLogs(MAX_LOG_COUNT)
     }
 
     suspend fun recordFailure(reason: String, isNoMatch: Boolean = false) = withContext(Dispatchers.IO) {
@@ -62,7 +62,7 @@ class WatchdogManager(private val context: Context) {
                 isSuccess = false
             )
         )
-        logDao.pruneOldLogs(1000)
+        logDao.pruneOldLogs(MAX_LOG_COUNT)
 
         // 3회 연속 시스템/자동화 오류 발생 시 복구 수행
         if (newFailureCount >= MAX_CONSECUTIVE_FAILURES) {
@@ -78,7 +78,7 @@ class WatchdogManager(private val context: Context) {
                 isSuccess = isSuccess
             )
         )
-        logDao.pruneOldLogs(1000)
+        logDao.pruneOldLogs(MAX_LOG_COUNT)
     }
 
     private suspend fun triggerAutoRecovery(failureCount: Int) {
@@ -91,7 +91,7 @@ class WatchdogManager(private val context: Context) {
                 isSuccess = false
             )
         )
-        logDao.pruneOldLogs(1000)
+        logDao.pruneOldLogs(MAX_LOG_COUNT)
 
         try {
             // Shazam 강제 종료 명령어 실행 (Shell 권한 범위 내)
@@ -104,5 +104,6 @@ class WatchdogManager(private val context: Context) {
     companion object {
         private const val TAG = "WatchdogManager"
         private const val MAX_CONSECUTIVE_FAILURES = 3
+        private const val MAX_LOG_COUNT = 10000
     }
 }
