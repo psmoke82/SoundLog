@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.FactCheck
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PowerSettingsNew
@@ -74,6 +75,7 @@ import com.soundlog.app.service.ForegroundSchedulerService
 import com.soundlog.app.service.ShazamAccessibilityService
 import com.soundlog.app.service.WatchdogManager
 import com.soundlog.app.ui.theme.AccentGreen
+import com.soundlog.app.ui.theme.AccentOrange
 import com.soundlog.app.ui.theme.AccentRed
 import com.soundlog.app.ui.theme.AccentYellow
 import com.soundlog.app.ui.theme.CardBorder
@@ -112,6 +114,8 @@ fun DashboardScreen(onNavigateToLogs: () -> Unit = {}) {
     }
 
     val todaySuccessCount by app.database.executionLogDao().getTodaySuccessCountFlow(todayStart)
+        .collectAsState(initial = 0)
+    val todayNoMatchCount by app.database.executionLogDao().getTodayNoMatchCountFlow(todayStart)
         .collectAsState(initial = 0)
     val todayFailureCount by app.database.executionLogDao().getTodayFailureCountFlow(todayStart)
         .collectAsState(initial = 0)
@@ -356,13 +360,13 @@ fun DashboardScreen(onNavigateToLogs: () -> Unit = {}) {
             }
         }
 
-        // Today Statistics Row
+        // Today Statistics Row (3-Tier Traffic Light: Success, No Match, Failure)
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             StatCard(
-                title = "오늘 식별 성공",
+                title = "오늘 성공",
                 value = "${todaySuccessCount}건",
                 color = AccentGreen,
                 icon = Icons.Default.CheckCircle,
@@ -371,7 +375,16 @@ fun DashboardScreen(onNavigateToLogs: () -> Unit = {}) {
                     .clickable { onNavigateToLogs() }
             )
             StatCard(
-                title = "오늘 식별 실패",
+                title = "음악 미인식",
+                value = "${todayNoMatchCount}건",
+                color = AccentOrange,
+                icon = Icons.Default.Info,
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable { onNavigateToLogs() }
+            )
+            StatCard(
+                title = "동작 실패",
                 value = "${todayFailureCount}건",
                 color = AccentRed,
                 icon = Icons.Default.Error,
@@ -606,17 +619,17 @@ fun StatCard(
         colors = CardDefaults.cardColors(containerColor = SurfaceDark),
         modifier = modifier.border(1.dp, CardBorder, RoundedCornerShape(12.dp))
     ) {
-        Column(modifier = Modifier.padding(14.dp)) {
+        Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 12.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(text = title, fontSize = 12.sp, color = TextSecondary)
-                Icon(imageVector = icon, contentDescription = null, tint = color, modifier = Modifier.size(18.dp))
+                Text(text = title, fontSize = 11.sp, color = TextSecondary, maxLines = 1)
+                Icon(imageVector = icon, contentDescription = null, tint = color, modifier = Modifier.size(16.dp))
             }
-            Spacer(modifier = Modifier.height(6.dp))
-            Text(text = value, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = color)
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(text = value, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = color)
         }
     }
 }

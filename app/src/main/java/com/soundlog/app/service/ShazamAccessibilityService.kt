@@ -18,8 +18,11 @@ class ShazamAccessibilityService : AccessibilityService() {
 
     private val serviceScope = CoroutineScope(Dispatchers.Main + Job())
     private var activeRecognitionJob: Job? = null
+    private var confirmationJob: Job? = null
     @Volatile private var isMonitoringActive = false
     @Volatile private var isListeningStarted = false
+    @Volatile private var isFinalizing = false
+    private var pendingCandidate: ShazamNodeFinder.RecognitionResult? = null
     private var buttonClickedTimestamp = 0L
     private var activeCallback: ((ShazamNodeFinder.RecognitionResult) -> Unit)? = null
 
@@ -51,23 +54,75 @@ class ShazamAccessibilityService : AccessibilityService() {
 
             val result = ShazamNodeFinder.extractRecognitionResult(rootNode)
             if (result.success || result.isNoMatch) {
-                Log.i(TAG, "Result captured via AccessibilityEvent! Result: $result")
-                val callback = activeCallback
-                if (callback != null && isMonitoringActive) {
-                    isMonitoringActive = false
-                    isListeningStarted = false
-                    serviceScope.launch {
-                        var finalRes = result
-                        val settings = com.soundlog.app.SoundLogApp.instance.settingsRepository
-                        if (finalRes.success && settings.albumArtOption == com.soundlog.app.data.local.pref.EncryptedSettingsRepository.ALBUM_ART_SHAZAM) {
-                            finalRes = processOptionBAlbumArtCapture(finalRes)
-                        }
-                        closeShazamAndReturnToSoundLog()
-                        callback(finalRes)
-                    }
-                }
+                Log.i(TAG, "Candidate result via AccessibilityEvent: $result")
+                onCandidateDetected(result)
             }
         }
+    }
+
+    /**
+     * 이벤트/폴링 어느 경로에서 감지되었든, 결과를 즉시 확정하지 않고 후보로만 저장합니다.
+     * CONFIRM_DELAY_MS 뒤 화면을 한 번 더 읽어 같은 결과가 재현될 때만 finalizeResult()로 확정합니다.
+     * (Shazam UI 전환 과정의 찰나의 과도기 프레임이 오탐으로 확정되는 것을 방지)
+     */
+    private fun onCandidateDetected(candidate: ShazamNodeFinder.RecognitionResult) {
+        if (!isMonitoringActive || isFinalizing) return
+
+        val pending = pendingCandidate
+        val sameAsPending = pending != null && (
+            (pending.success && candidate.success && pending.artist == candidate.artist && pending.title == candidate.title) ||
+            (pending.isNoMatch && candidate.isNoMatch)
+        )
+        if (sameAsPending && confirmationJob?.isActive == true) return
+
+        pendingCandidate = candidate
+        confirmationJob?.cancel()
+        confirmationJob = serviceScope.launch {
+            delay(CONFIRM_DELAY_MS)
+            if (!isMonitoringActive || isFinalizing) return@launch
+
+            val currentRoot = rootInActiveWindow
+            if (currentRoot == null || currentRoot.packageName?.toString() != AppChecklistHelper.SHAZAM_PACKAGE_NAME) {
+                pendingCandidate = null
+                return@launch
+            }
+
+            val recheck = ShazamNodeFinder.extractRecognitionResult(currentRoot)
+            val confirmed = (candidate.success && recheck.success && candidate.artist == recheck.artist && candidate.title == recheck.title) ||
+                (candidate.isNoMatch && recheck.isNoMatch)
+
+            if (confirmed) {
+                Log.i(TAG, "Candidate confirmed after re-check: $recheck")
+                finalizeResult(recheck)
+            } else {
+                Log.i(TAG, "Candidate NOT reproduced on re-check (discarded as transient frame): $candidate -> $recheck")
+                pendingCandidate = null
+            }
+        }
+    }
+
+    /**
+     * 인식 흐름을 종료하고 콜백을 호출하는 유일한 지점.
+     * isFinalizing 플래그로 이벤트/폴링/타임아웃 경로 중 어느 하나만 종결을 수행하도록 보장합니다.
+     */
+    private suspend fun finalizeResult(result: ShazamNodeFinder.RecognitionResult) {
+        if (isFinalizing) return
+        isFinalizing = true
+        isMonitoringActive = false
+        isListeningStarted = false
+        confirmationJob?.cancel()
+        pendingCandidate = null
+
+        var finalRes = result
+        val settings = com.soundlog.app.SoundLogApp.instance.settingsRepository
+        if (finalRes.success && settings.albumArtOption == com.soundlog.app.data.local.pref.EncryptedSettingsRepository.ALBUM_ART_SHAZAM) {
+            finalRes = processOptionBAlbumArtCapture(finalRes)
+        }
+
+        closeShazamAndReturnToSoundLog()
+        val callback = activeCallback
+        activeCallback = null
+        callback?.invoke(finalRes)
     }
 
     fun closeShazamAndReturnToSoundLog() {
@@ -123,6 +178,9 @@ class ShazamAccessibilityService : AccessibilityService() {
         onResult: (ShazamNodeFinder.RecognitionResult) -> Unit
     ) {
         activeRecognitionJob?.cancel()
+        confirmationJob?.cancel()
+        pendingCandidate = null
+        isFinalizing = false
         isMonitoringActive = true
         isListeningStarted = false
         activeCallback = onResult
@@ -177,8 +235,6 @@ class ShazamAccessibilityService : AccessibilityService() {
             val startTime = System.currentTimeMillis()
             val maxTimeoutMs = maxTimeoutSeconds * 1000L
 
-            var finalResult: ShazamNodeFinder.RecognitionResult? = null
-
             withTimeoutOrNull(maxTimeoutMs) {
                 while (isMonitoringActive && System.currentTimeMillis() - startTime < maxTimeoutMs) {
                     val currentRoot = rootInActiveWindow
@@ -186,9 +242,8 @@ class ShazamAccessibilityService : AccessibilityService() {
                         val result = ShazamNodeFinder.extractRecognitionResult(currentRoot)
 
                         if (result.success || result.isNoMatch) {
-                            finalResult = result
-                            Log.i(TAG, "Result detected dynamically via polling! Elapsed: ${System.currentTimeMillis() - startTime}ms")
-                            break
+                            Log.i(TAG, "Candidate result via polling! Elapsed: ${System.currentTimeMillis() - startTime}ms")
+                            onCandidateDetected(result)
                         }
                     }
 
@@ -196,20 +251,12 @@ class ShazamAccessibilityService : AccessibilityService() {
                 }
             }
 
-            if (isMonitoringActive) {
-                isMonitoringActive = false
-                isListeningStarted = false
-
-                var res = finalResult ?: ShazamNodeFinder.RecognitionResult(false, errorMessage = "동적 타임아웃(${maxTimeoutSeconds}s) 초과 - 인식 실패")
-
-                // 방안 B: 인식 성공 및 ALBUM_ART_SHAZAM 설정 시 상세 클릭 -> 스와이프 -> 스크린샷 캡처 수행
-                val settings = com.soundlog.app.SoundLogApp.instance.settingsRepository
-                if (res.success && settings.albumArtOption == com.soundlog.app.data.local.pref.EncryptedSettingsRepository.ALBUM_ART_SHAZAM) {
-                    res = processOptionBAlbumArtCapture(res)
-                }
-
-                closeShazamAndReturnToSoundLog()
-                onResult(res)
+            // 확정 권한은 finalizeResult() 단일 지점뿐이므로, 타임아웃까지 아무것도 확정되지 않았을 때만
+            // 여기서 타임아웃 실패로 종결합니다. (진행 중인 재확인이 있었다면 그쪽이 이미 처리했을 것)
+            if (isMonitoringActive && !isFinalizing) {
+                finalizeResult(
+                    ShazamNodeFinder.RecognitionResult(false, errorMessage = "동적 타임아웃(${maxTimeoutSeconds}s) 초과 - 인식 실패")
+                )
             }
         }
     }
@@ -255,6 +302,9 @@ class ShazamAccessibilityService : AccessibilityService() {
     companion object {
 
         private const val TAG = "ShazamAccessibility"
+
+        // 후보 결과가 실제로 안정된 최종 화면인지 재확인하기까지 대기하는 시간
+        private const val CONFIRM_DELAY_MS = 300L
 
         @Volatile
         var instance: ShazamAccessibilityService? = null

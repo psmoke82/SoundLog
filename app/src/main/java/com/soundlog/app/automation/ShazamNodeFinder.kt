@@ -151,7 +151,7 @@ object ShazamNodeFinder {
         for (id in TITLE_IDS) {
             val nodes = rootNode.findAccessibilityNodeInfosByViewId(id)
             val t = nodes?.firstOrNull()?.text?.toString()?.trim()
-            if (!t.isNullOrBlank() && !isDateTimeOrIgnoredText(t)) {
+            if (!t.isNullOrBlank() && isValidViewIdText(t)) {
                 title = t
                 break
             }
@@ -160,7 +160,7 @@ object ShazamNodeFinder {
         for (id in ARTIST_IDS) {
             val nodes = rootNode.findAccessibilityNodeInfosByViewId(id)
             val a = nodes?.firstOrNull()?.text?.toString()?.trim()
-            if (!a.isNullOrBlank() && !isDateTimeOrIgnoredText(a)) {
+            if (!a.isNullOrBlank() && isValidViewIdText(a)) {
                 artist = a
                 break
             }
@@ -181,11 +181,13 @@ object ShazamNodeFinder {
         }.distinct()
 
         if (validTexts.size >= 2) {
-            val candidateTitle = validTexts[0]
-            val candidateArtist = validTexts[1]
-            if (isValidArtistTitlePair(candidateTitle, candidateArtist)) {
-                Log.i(TAG, "Extracted by Text Nodes Fallback -> Title: $candidateTitle, Artist: $candidateArtist")
-                return RecognitionResult(true, artist = candidateArtist, title = candidateTitle)
+            for (i in 0 until validTexts.size - 1) {
+                val candidateTitle = validTexts[i]
+                val candidateArtist = validTexts[i + 1]
+                if (isValidArtistTitlePair(candidateTitle, candidateArtist)) {
+                    Log.i(TAG, "Extracted by Text Nodes Fallback -> Title: $candidateTitle, Artist: $candidateArtist")
+                    return RecognitionResult(true, artist = candidateArtist, title = candidateTitle)
+                }
             }
         } else if (validTexts.size == 1 && !title.isNullOrBlank()) {
             val candidateArtist = validTexts[0]
@@ -212,24 +214,78 @@ object ShazamNodeFinder {
         return findNodesByTextKeywords(rootNode, keywords).isNotEmpty()
     }
 
-    private fun isValidArtistTitlePair(title: String, artist: String): Boolean {
-        val lowerTitle = title.trim().lowercase()
-        val lowerArtist = artist.trim().lowercase()
+    /**
+     * View ID(com.shazam.android:id/title, artist 등)에서 텍스트를 추출할 때 수행하는 가벼운 유효성 검사
+     * 과도한 날짜/단어 필터링을 하지 않아 'Yesterday', 'Today', '1999' 등 실제 곡명이 손실되지 않도록 보장합니다.
+     */
+    fun isValidViewIdText(text: String): Boolean {
+        val trimmed = text.trim()
+        if (trimmed.isBlank()) return false
+        if (trimmed.length < 1) return false
+
+        // 통계 수치나 샤잠 카운트 형태는 제외 (예: "37,110", "1,387,352", "5.2K")
+        if (isCountOrStatisticText(trimmed)) return false
+
+        val lower = trimmed.lowercase()
+
+        // 시스템 상태 안내 또는 UI 버튼 가이드 문구 제외
+        val systemStatusKeywords = listOf(
+            "듣는 중", "수음 중", "찾는 중", "검색 중", "검색중", "기다려주세요",
+            "shazam하려면", "tap to shazam", "결과 없음", "no result", "다시 시도",
+            "음악 감상", "음악감상", "기기에", "인식되는지", "취소됨", "알겠습니다",
+            "내부 오디오", "오디오 사용", "헤드폰", "곡 공유", "공유하기", "가사",
+            "상위 곡", "상위곡", "youtube music", "apple music", "share", "lyrics"
+        )
+        if (systemStatusKeywords.any { lower.contains(it) }) return false
+
+        if (trimmed.endsWith("하세요") || trimmed.endsWith("입니다") ||
+            trimmed.endsWith("십시요") || trimmed.endsWith("바랍니다") ||
+            trimmed.endsWith("주세요") || trimmed.endsWith("됨")) {
+            return false
+        }
+
+        return true
+    }
+
+    fun isValidArtistTitlePair(title: String, artist: String): Boolean {
+        val trimmedTitle = title.trim()
+        val trimmedArtist = artist.trim()
+
+        if (trimmedTitle.isBlank() || trimmedArtist.isBlank()) return false
+        if (trimmedTitle.length < 1 || trimmedArtist.length < 1) return false
+
+        // 통계 수치나 샤잠 카운트 형태는 곡명/아티스트로 불가 (예: "37,110", "1,234,567", "5.2K")
+        if (isCountOrStatisticText(trimmedTitle) || isCountOrStatisticText(trimmedArtist)) {
+            Log.w(TAG, "Rejected statistic/count text: Title='$title', Artist='$artist'")
+            return false
+        }
+
+        // 아티스트명이 순수 숫자만으로 이루어진 경우 기각 (예: "1234", "37110")
+        if (trimmedArtist.all { it.isDigit() || it == ',' || it == '.' || it == ' ' }) {
+            Log.w(TAG, "Rejected purely numeric artist: Artist='$artist'")
+            return false
+        }
+
+        val lowerTitle = trimmedTitle.lowercase()
+        val lowerArtist = trimmedArtist.lowercase()
 
         val systemNoticeKeywords = listOf(
             "라이브러리", "콘서트", "library", "concert", "charts", "차트",
             "알겠습니다", "취소됨", "내부 오디오", "헤드폰", "음악 감상", "음악감상",
-            "오디오 사용", "재생되는", "인식 취소"
+            "오디오 사용", "재생되는", "인식 취소", "shazam", "샤잠", "가사",
+            "상위 곡", "상위곡", "곡 공유", "공유하기", "youtube music", "apple music"
         )
 
         if (systemNoticeKeywords.any { lowerTitle.contains(it) || lowerArtist.contains(it) }) {
             Log.w(TAG, "Rejected system notice text: Title='$title', Artist='$artist'")
             return false
         }
+
         if (lowerTitle == lowerArtist) {
             Log.w(TAG, "Rejected identical Title & Artist: Title='$title', Artist='$artist'")
             return false
         }
+
         return true
     }
 
@@ -241,7 +297,29 @@ object ShazamNodeFinder {
         return findNodesByTextKeywords(rootNode, keywords).isNotEmpty()
     }
 
-    private fun isDateTimeOrIgnoredText(text: String): Boolean {
+    /**
+     * 샤잠 인식 횟수(예: "37,110", "37,111", "1,234,567", "5.2K", "100만 회" 등) 및 통계치 노드 판별
+     */
+    fun isCountOrStatisticText(text: String): Boolean {
+        val trimmed = text.trim()
+        if (trimmed.isEmpty()) return false
+
+        // 1. 콤마가 포함된 수치 (예: "37,110", "1,234,567", "37,111")
+        val commaNumberRegex = Regex("""^\d{1,3}(,\d{3})+(\.\d+)?(\s*([kKmMbB]|회|곡|건|shazam|shazams))?$""", RegexOption.IGNORE_CASE)
+        if (commaNumberRegex.matches(trimmed)) return true
+
+        // 2. K, M, B 단위 또는 횟수/shazams 단위가 붙은 수치 (예: "5.2K", "1.2M", "100만 회", "500 shazams")
+        val unitNumberRegex = Regex("""^\d+(\.\d+)?\s*([kKmMbB]|만\s*회|회|곡|건|shazam|shazams)$""", RegexOption.IGNORE_CASE)
+        if (unitNumberRegex.matches(trimmed)) return true
+
+        // 3. 순수 숫자 5자리 이상 (예: "37110" - 샤잠 카운트 등)
+        val largeNumberRegex = Regex("""^\d{5,}$""")
+        if (largeNumberRegex.matches(trimmed)) return true
+
+        return false
+    }
+
+    fun isDateTimeOrIgnoredText(text: String): Boolean {
         val trimmed = text.trim()
         if (trimmed.length < 2) return true
 
@@ -258,7 +336,9 @@ object ShazamNodeFinder {
             "인증", "설정", "권한", "알림", "연결", "안내", "확인", "일치하는",
             "검색 중", "검색중", "기다려주세요", "기다려", "잠시만", "중입니다",
             "수음 중", "인식 중", "검색", "대기", "라이브러리", "콘서트", "차트",
-            "알겠습니다", "헤드폰", "취소됨", "내부 오디오", "오디오 사용", "재생되는"
+            "알겠습니다", "헤드폰", "취소됨", "내부 오디오", "오디오 사용", "재생되는",
+            "가사", "상위 곡", "상위곡", "곡 공유하기", "공유하기", "곡 공유", "youtube music",
+            "shazams", "shazam 횟수", "더보기"
         )
         if (ignoredKeywords.any { lower.contains(it) }) return true
 
@@ -270,27 +350,23 @@ object ShazamNodeFinder {
             return true
         }
 
-        // 3. 날짜 / 요일 관련 키워드
-        val dateKeywords = listOf(
+        // 3. 샤잠 횟수 및 통계 수치 필터링 (37,110, 1,234,567, 5.2K 등)
+        if (isCountOrStatisticText(trimmed)) return true
+
+        // 4. 단독 날짜/요일 키워드 (한국어 단독 키워드만 지정하여 영어 일반 단어 보존)
+        val standaloneDateKeywords = listOf(
             "월요일", "화요일", "수요일", "목요일", "금요일", "토요일", "일요일",
-            "오늘", "어제", "내일", "월 ", "일 ", "년 ",
-            "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
-            "today", "yesterday"
+            "오늘", "어제", "그저께", "내일", "지난주", "이번주"
         )
-        if (dateKeywords.any { lower.contains(it) }) return true
+        if (standaloneDateKeywords.any { lower == it }) return true
 
-        // 4. 시간 정규식 (12:06:44, 12:06 등)
-        val timeRegex = Regex("""^.*(\d{1,2}:\d{2}(:\d{2})?).*$""")
-        if (timeRegex.matches(trimmed)) return true
+        // 5. 시간 단독 정규식 (예: "12:06:44", "12:06", "오후 3:20", "03:15 PM")
+        val pureTimeRegex = Regex("""^((am|pm|오전|오후)\s*)?\d{1,2}:\d{2}(:\d{2})?(\s*(am|pm))?$""", RegexOption.IGNORE_CASE)
+        if (pureTimeRegex.matches(trimmed)) return true
 
-        // 5. 날짜 정규식 (8월 8일, 2026.08.08 등)
-        val dateRegex = Regex("""^.*(\d{1,4}[년월일./-]\s*\d{1,2}[월일./-]?\s*\d{0,4}[일]?).*$""")
-        if (dateRegex.matches(trimmed)) return true
-
-        // 6. AM/PM 및 오전/오후
-        if (lower.contains("am") || lower.contains("pm") || lower.contains("오전") || lower.contains("오후")) {
-            if (Regex("""\d""").containsMatchIn(trimmed)) return true
-        }
+        // 6. 날짜 단독 정규식 (예: "2026.08.15", "2026-08-15", "8월 15일", "2026년 8월 15일")
+        val pureDateRegex = Regex("""^(\d{2,4}[년./-]\s*)?\d{1,2}[월./-]\s*\d{1,2}[일]?(\s*(\([월화수목금토일]\)|[월화수목금토일]요일))?$""")
+        if (pureDateRegex.matches(trimmed)) return true
 
         return false
     }
@@ -370,17 +446,25 @@ object ShazamNodeFinder {
         return maxNode
     }
 
-    private fun collectCleanTextStrings(node: AccessibilityNodeInfo?, list: MutableList<String>) {
-        if (node == null) return
+    private fun collectCleanTextStrings(node: AccessibilityNodeInfo?, list: MutableList<String>): Boolean {
+        if (node == null) return false
         if (node.isVisibleToUser) {
             val text = node.text?.toString()?.trim()
             if (!text.isNullOrEmpty()) {
+                val lower = text.lowercase()
+                // '상위 곡', 'top tracks', '관련 곡' 등 추천 섹션 헤더를 만나면 이후 노드 수집 중단
+                if (lower == "상위 곡" || lower == "상위곡" || lower == "top tracks" || lower == "top songs" || lower == "관련 트랙") {
+                    Log.d(TAG, "Encountered recommendation section '$text'. Stopping further fallback node collection.")
+                    return true
+                }
                 list.add(text)
             }
         }
         for (i in 0 until node.childCount) {
-            collectCleanTextStrings(node.getChild(i), list)
+            val shouldStop = collectCleanTextStrings(node.getChild(i), list)
+            if (shouldStop) return true
         }
+        return false
     }
 
     private fun dispatchCenterTap(service: AccessibilityService): Boolean {

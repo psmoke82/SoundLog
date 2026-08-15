@@ -12,8 +12,8 @@ android {
         applicationId = "com.soundlog.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 46
-        versionName = "1.2.1"
+        versionCode = 47
+        versionName = "1.2.47"
 
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -58,6 +58,9 @@ android {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
+    }
+    testOptions {
+        unitTests.isReturnDefaultValues = true
     }
 }
 

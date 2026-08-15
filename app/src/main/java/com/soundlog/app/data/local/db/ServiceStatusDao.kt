@@ -36,13 +36,18 @@ interface ExecutionLogDao {
     @Query("SELECT * FROM execution_logs WHERE step NOT IN ('SUCCESS', 'NO_MATCH', 'FAILURE', 'DUPLICATE_SKIP') ORDER BY timestamp DESC LIMIT :limit")
     fun getSystemLogsFlow(limit: Int = 10000): Flow<List<ExecutionLogEntity>>
 
-    // 오늘 00시 이후 음악 식별 성공 카운트
+    // 오늘 00시 이후 음악 식별 성공 카운트 (SUCCESS)
     @Query("SELECT COUNT(*) FROM execution_logs WHERE step = 'SUCCESS' AND timestamp >= :startOfDay")
     fun getTodaySuccessCountFlow(startOfDay: Long): Flow<Int>
 
-    // 오늘 00시 이후 음악 식별 실패 카운트 (FAILURE, NO_MATCH)
-    @Query("SELECT COUNT(*) FROM execution_logs WHERE step IN ('FAILURE', 'NO_MATCH') AND timestamp >= :startOfDay")
+    // 오늘 00시 이후 음악 미인식 카운트 (NO_MATCH)
+    @Query("SELECT COUNT(*) FROM execution_logs WHERE step = 'NO_MATCH' AND timestamp >= :startOfDay")
+    fun getTodayNoMatchCountFlow(startOfDay: Long): Flow<Int>
+
+    // 오늘 00시 이후 동작 실패 카운트 (FAILURE)
+    @Query("SELECT COUNT(*) FROM execution_logs WHERE step = 'FAILURE' AND timestamp >= :startOfDay")
     fun getTodayFailureCountFlow(startOfDay: Long): Flow<Int>
+
 
     @Query("DELETE FROM execution_logs WHERE id NOT IN (SELECT id FROM execution_logs ORDER BY timestamp DESC LIMIT :maxCount)")
     suspend fun pruneOldLogs(maxCount: Int = 10000)

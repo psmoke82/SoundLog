@@ -59,6 +59,7 @@ import com.soundlog.app.SoundLogApp
 import com.soundlog.app.data.local.entity.ExecutionLogEntity
 import com.soundlog.app.data.local.entity.SongResultEntity
 import com.soundlog.app.ui.theme.AccentGreen
+import com.soundlog.app.ui.theme.AccentOrange
 import com.soundlog.app.ui.theme.AccentRed
 import com.soundlog.app.ui.theme.AccentYellow
 import com.soundlog.app.ui.theme.CardBorder
@@ -141,27 +142,25 @@ fun LogsScreen() {
     }
 }
 
-/** 식별 이력 통합 래퍼 모델 (성공 곡 vs 실패 로그) */
+/** 식별 이력 통합 래퍼 모델 (성공 곡 vs 미인식/실패 로그) */
 sealed class RecognitionHistoryItem {
     abstract val timestamp: Long
-    abstract val isSuccess: Boolean
 
     data class SuccessSong(val song: SongResultEntity) : RecognitionHistoryItem() {
         override val timestamp: Long get() = song.detectedAt
-        override val isSuccess: Boolean get() = song.telegramStatus == SongResultEntity.STATUS_SENT || song.telegramStatus == SongResultEntity.STATUS_PENDING
     }
 
-    data class FailureLog(val log: ExecutionLogEntity) : RecognitionHistoryItem() {
+    data class RecognitionLog(val log: ExecutionLogEntity) : RecognitionHistoryItem() {
         override val timestamp: Long get() = log.timestamp
-        override val isSuccess: Boolean get() = false
     }
 }
 
-/** 날짜별 그룹핑 데이터 구조체 */
+/** 날짜별 그룹핑 데이터 구조체 (3단계 신호등: 성공, 미인식, 실패) */
 data class DateGroup(
     val dateKey: String,
     val displayDate: String,
     val successCount: Int,
+    val noMatchCount: Int,
     val failureCount: Int,
     val items: List<RecognitionHistoryItem>
 )
@@ -179,11 +178,11 @@ fun SongHistoryList(songs: List<SongResultEntity>, recognitionLogs: List<Executi
 
     val dateGroups = remember(songs, recognitionLogs, searchQuery) {
         val songItems = songs.map { RecognitionHistoryItem.SuccessSong(it) }
-        val failureItems = recognitionLogs
+        val logItems = recognitionLogs
             .filter { it.step == "NO_MATCH" || it.step == "FAILURE" }
-            .map { RecognitionHistoryItem.FailureLog(it) }
+            .map { RecognitionHistoryItem.RecognitionLog(it) }
 
-        val allItems = (songItems + failureItems).sortedByDescending { it.timestamp }
+        val allItems = (songItems + logItems).sortedByDescending { it.timestamp }
 
         val filteredItems = if (searchQuery.isBlank()) {
             allItems
@@ -193,7 +192,7 @@ fun SongHistoryList(songs: List<SongResultEntity>, recognitionLogs: List<Executi
                     is RecognitionHistoryItem.SuccessSong ->
                         item.song.title.contains(searchQuery, ignoreCase = true) ||
                         item.song.artist.contains(searchQuery, ignoreCase = true)
-                    is RecognitionHistoryItem.FailureLog ->
+                    is RecognitionHistoryItem.RecognitionLog ->
                         item.log.message.contains(searchQuery, ignoreCase = true)
                 }
             }
@@ -206,8 +205,9 @@ fun SongHistoryList(songs: List<SongResultEntity>, recognitionLogs: List<Executi
                 DateGroup(
                     dateKey = dateKey,
                     displayDate = displayDateSdf.format(Date(firstTimestamp)),
-                    successCount = groupItems.count { it.isSuccess },
-                    failureCount = groupItems.count { !it.isSuccess },
+                    successCount = groupItems.count { it is RecognitionHistoryItem.SuccessSong },
+                    noMatchCount = groupItems.count { it is RecognitionHistoryItem.RecognitionLog && it.log.step == "NO_MATCH" },
+                    failureCount = groupItems.count { it is RecognitionHistoryItem.RecognitionLog && it.log.step == "FAILURE" },
                     items = groupItems
                 )
             }
@@ -309,7 +309,7 @@ fun SongHistoryList(songs: List<SongResultEntity>, recognitionLogs: List<Executi
                             key = { item ->
                                 when (item) {
                                     is RecognitionHistoryItem.SuccessSong -> "song_${item.song.id}"
-                                    is RecognitionHistoryItem.FailureLog -> "log_${item.log.id}"
+                                    is RecognitionHistoryItem.RecognitionLog -> "log_${item.log.id}"
                                 }
                             }
                         ) { item ->
@@ -317,7 +317,7 @@ fun SongHistoryList(songs: List<SongResultEntity>, recognitionLogs: List<Executi
                                 is RecognitionHistoryItem.SuccessSong -> {
                                     SongHistoryItemCard(song = item.song)
                                 }
-                                is RecognitionHistoryItem.FailureLog -> {
+                                is RecognitionHistoryItem.RecognitionLog -> {
                                     NoMatchLogCard(log = item.log)
                                 }
                             }
@@ -378,9 +378,9 @@ fun DateGroupHeader(
 
         Spacer(modifier = Modifier.width(8.dp))
 
-        // 우측: 캡슐형 성공/실패 뱃지
+        // 우측: 3단계 캡슐형 성공/미인식/실패 뱃지 (신호등 색상)
         Row(
-            horizontalArrangement = Arrangement.spacedBy(5.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (group.successCount > 0) {
@@ -388,13 +388,28 @@ fun DateGroupHeader(
                     modifier = Modifier
                         .background(AccentGreen.copy(alpha = 0.15f), RoundedCornerShape(12.dp))
                         .border(1.dp, AccentGreen.copy(alpha = 0.45f), RoundedCornerShape(12.dp))
-                        .padding(horizontal = 7.dp, vertical = 2.5.dp)
+                        .padding(horizontal = 6.dp, vertical = 2.5.dp)
                 ) {
                     Text(
                         text = "● 성공 ${group.successCount}",
-                        fontSize = 11.sp,
+                        fontSize = 10.5.sp,
                         fontWeight = FontWeight.Bold,
                         color = AccentGreen
+                    )
+                }
+            }
+            if (group.noMatchCount > 0) {
+                Box(
+                    modifier = Modifier
+                        .background(AccentOrange.copy(alpha = 0.15f), RoundedCornerShape(12.dp))
+                        .border(1.dp, AccentOrange.copy(alpha = 0.45f), RoundedCornerShape(12.dp))
+                        .padding(horizontal = 6.dp, vertical = 2.5.dp)
+                ) {
+                    Text(
+                        text = "● 미인식 ${group.noMatchCount}",
+                        fontSize = 10.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = AccentOrange
                     )
                 }
             }
@@ -403,11 +418,11 @@ fun DateGroupHeader(
                     modifier = Modifier
                         .background(AccentRed.copy(alpha = 0.15f), RoundedCornerShape(12.dp))
                         .border(1.dp, AccentRed.copy(alpha = 0.45f), RoundedCornerShape(12.dp))
-                        .padding(horizontal = 7.dp, vertical = 2.5.dp)
+                        .padding(horizontal = 6.dp, vertical = 2.5.dp)
                 ) {
                     Text(
                         text = "● 실패 ${group.failureCount}",
-                        fontSize = 11.sp,
+                        fontSize = 10.5.sp,
                         fontWeight = FontWeight.Bold,
                         color = AccentRed
                     )
@@ -535,9 +550,14 @@ fun SongHistoryItemCard(song: SongResultEntity) {
     }
 }
 
-/** 음악 미인식(NO_MATCH) / 실패(FAILURE) 로그 카드 */
+/** 음악 미인식(NO_MATCH) / 동작 실패(FAILURE) 로그 카드 */
 @Composable
 fun NoMatchLogCard(log: ExecutionLogEntity) {
+    val isFailure = log.step == "FAILURE"
+    val itemColor = if (isFailure) AccentRed else AccentOrange
+    val titleText = if (isFailure) "인식 실패" else "음악 미인식"
+    val icon = if (isFailure) Icons.Default.Error else Icons.Default.Info
+
     Card(
         colors = CardDefaults.cardColors(containerColor = SurfaceDark),
         modifier = Modifier
@@ -549,9 +569,9 @@ fun NoMatchLogCard(log: ExecutionLogEntity) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
-                imageVector = Icons.Default.Info,
+                imageVector = icon,
                 contentDescription = null,
-                tint = if (log.step == "FAILURE") AccentRed else AccentYellow,
+                tint = itemColor,
                 modifier = Modifier.size(18.dp)
             )
             Spacer(modifier = Modifier.width(8.dp))
@@ -561,10 +581,10 @@ fun NoMatchLogCard(log: ExecutionLogEntity) {
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        text = if (log.step == "NO_MATCH") "음악 미인식" else "인식 실패",
+                        text = titleText,
                         fontWeight = FontWeight.Bold,
                         fontSize = 13.sp,
-                        color = if (log.step == "FAILURE") AccentRed else AccentYellow
+                        color = itemColor
                     )
                     Text(
                         text = formatLogTimeFull(log.timestamp),

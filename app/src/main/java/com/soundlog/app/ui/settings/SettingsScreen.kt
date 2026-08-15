@@ -563,9 +563,9 @@ fun SettingsScreen() {
                     @Suppress("DEPRECATION") pInfo.versionCode.toLong()
                 }
                 val dateStr = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.KOREA).format(java.util.Date(pInfo.lastUpdateTime))
-                "SoundLog $verName (Build $buildCode)·$dateStr"
+                "$verName (Build $buildCode) ● $dateStr"
             } catch (e: Exception) {
-                "SoundLog v1.2.1 (Build 46)·2026-08-14"
+                "v1.2.1 (Build 46) ● 2026-08-14"
             }
         }
 

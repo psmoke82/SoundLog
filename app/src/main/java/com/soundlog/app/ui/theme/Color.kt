@@ -11,6 +11,8 @@ val SecondaryNeon = Color(0xFF818CF8) // Soft Indigo
 val AccentGreen = Color(0xFF4ADE80)   // Bright Green
 val AccentRed = Color(0xFFF87171)     // Soft Red
 val AccentYellow = Color(0xFFFBBF24)  // Amber
+val AccentOrange = Color(0xFFFB923C)  // Vibrant Orange
+
 
 val TextPrimary = Color(0xFFF8FAFC)
 val TextSecondary = Color(0xFF94A3B8)
