@@ -378,23 +378,23 @@ fun DateGroupHeader(
 
         Spacer(modifier = Modifier.width(8.dp))
 
-        // 우측: 3단계 캡슐형 성공/미인식/실패 뱃지 (신호등 색상)
+        // 우측: 3단계 캡슐형 실패/미인식/성공 뱃지 (신호등 색상)
         Row(
             horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            if (group.successCount > 0) {
+            if (group.failureCount > 0) {
                 Box(
                     modifier = Modifier
-                        .background(AccentGreen.copy(alpha = 0.15f), RoundedCornerShape(12.dp))
-                        .border(1.dp, AccentGreen.copy(alpha = 0.45f), RoundedCornerShape(12.dp))
+                        .background(AccentRed.copy(alpha = 0.15f), RoundedCornerShape(12.dp))
+                        .border(1.dp, AccentRed.copy(alpha = 0.45f), RoundedCornerShape(12.dp))
                         .padding(horizontal = 6.dp, vertical = 2.5.dp)
                 ) {
                     Text(
-                        text = "● 성공 ${group.successCount}",
+                        text = "● ${group.failureCount}",
                         fontSize = 10.5.sp,
                         fontWeight = FontWeight.Bold,
-                        color = AccentGreen
+                        color = AccentRed
                     )
                 }
             }
@@ -406,35 +406,27 @@ fun DateGroupHeader(
                         .padding(horizontal = 6.dp, vertical = 2.5.dp)
                 ) {
                     Text(
-                        text = "● 미인식 ${group.noMatchCount}",
+                        text = "● ${group.noMatchCount}",
                         fontSize = 10.5.sp,
                         fontWeight = FontWeight.Bold,
                         color = AccentOrange
                     )
                 }
             }
-            if (group.failureCount > 0) {
+            if (group.successCount > 0) {
                 Box(
                     modifier = Modifier
-                        .background(AccentRed.copy(alpha = 0.15f), RoundedCornerShape(12.dp))
-                        .border(1.dp, AccentRed.copy(alpha = 0.45f), RoundedCornerShape(12.dp))
+                        .background(AccentGreen.copy(alpha = 0.15f), RoundedCornerShape(12.dp))
+                        .border(1.dp, AccentGreen.copy(alpha = 0.45f), RoundedCornerShape(12.dp))
                         .padding(horizontal = 6.dp, vertical = 2.5.dp)
                 ) {
                     Text(
-                        text = "● 실패 ${group.failureCount}",
+                        text = "● ${group.successCount}",
                         fontSize = 10.5.sp,
                         fontWeight = FontWeight.Bold,
-                        color = AccentRed
+                        color = AccentGreen
                     )
                 }
-            }
-            if (isCollapsed) {
-                Text(
-                    text = "(접힘)",
-                    fontSize = 11.sp,
-                    color = TextMuted,
-                    modifier = Modifier.padding(start = 2.dp)
-                )
             }
         }
     }

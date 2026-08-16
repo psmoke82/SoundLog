@@ -4,6 +4,7 @@ import android.content.Intent
 import android.provider.Settings
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -45,8 +47,6 @@ import androidx.compose.material3.Divider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -165,137 +165,124 @@ fun DashboardScreen(onNavigateToLogs: () -> Unit = {}) {
             .verticalScroll(scrollState),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Header with Right Top Toggle
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "SoundLog Dashboard",
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = TextPrimary
-                )
-                Text(
-                    text = "24시간 상시 음악 식별 & 텔레그램 공유",
-                    fontSize = 12.sp,
-                    color = TextSecondary
-                )
-            }
-
-            // Top Right Monitoring Power Toggle Button
-            Switch(
-                checked = serviceEnabled,
-                onCheckedChange = { enabled ->
-                    serviceEnabled = enabled
-                    settings.isServiceEnabled = enabled
-                    if (enabled) {
-                        ForegroundSchedulerService.startService(context)
-                        Toast.makeText(context, "모니터링 작동 (ON)", Toast.LENGTH_SHORT).show()
-                    } else {
-                        ForegroundSchedulerService.stopService(context)
-                        Toast.makeText(context, "모니터링 중지 (OFF)", Toast.LENGTH_SHORT).show()
-                    }
-                },
-                colors = SwitchDefaults.colors(
-                    checkedThumbColor = PrimaryNeon,
-                    checkedTrackColor = SurfaceVariantDark
-                )
+        // Header
+        Column {
+            Text(
+                text = "SoundLog Dashboard",
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold,
+                color = TextPrimary
+            )
+            Text(
+                text = "24시간 상시 음악 식별 & 텔레그램 공유",
+                fontSize = 12.sp,
+                color = TextSecondary
             )
         }
 
-        // Checklist Card (체크리스트)
-        Card(
-            colors = CardDefaults.cardColors(containerColor = SurfaceDark),
-            modifier = Modifier
-                .fillMaxWidth()
-                .border(
-                    1.dp,
-                    if (allPassed) AccentGreen else AccentYellow,
-                    RoundedCornerShape(16.dp)
-                )
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .weight(1f)
-                            .clickable { isChecklistExpanded = !isChecklistExpanded }
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.FactCheck,
-                            contentDescription = null,
-                            tint = if (allPassed) AccentGreen else AccentYellow,
-                            modifier = Modifier.size(24.dp)
-                        )
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Column {
-                            Text(
-                                text = "앱 수행 필수 체크리스트",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 16.sp,
-                                color = TextPrimary
-                            )
-                            Text(
-                                text = if (allPassed) "모든 환경 및 권한 설정 완료 ($passedCount/$totalCount)"
-                                else "조치가 필요한 항목이 있습니다 ($passedCount/$totalCount 완료)",
-                                fontSize = 12.sp,
-                                color = if (allPassed) AccentGreen else AccentYellow
-                            )
-                        }
-                    }
-
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(
-                            onClick = {
-                                refreshChecklist()
-                                Toast.makeText(context, "체크리스트 상태가 갱신되었습니다.", Toast.LENGTH_SHORT).show()
-                            },
-                            modifier = Modifier.size(32.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Refresh,
-                                contentDescription = "체크리스트 새로고침",
-                                tint = PrimaryNeon,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-
-                        IconButton(
-                            onClick = { isChecklistExpanded = !isChecklistExpanded },
-                            modifier = Modifier.size(32.dp)
-                        ) {
-                            Icon(
-                                imageVector = if (isChecklistExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                                contentDescription = null,
-                                tint = TextSecondary,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                    }
+        // Monitoring Power Toggle Card (중앙 대형 토글)
+        MonitoringToggleCard(
+            enabled = serviceEnabled,
+            onToggle = { enabled ->
+                serviceEnabled = enabled
+                settings.isServiceEnabled = enabled
+                if (enabled) {
+                    ForegroundSchedulerService.startService(context)
+                    Toast.makeText(context, "모니터링 작동 (ON)", Toast.LENGTH_SHORT).show()
+                } else {
+                    ForegroundSchedulerService.stopService(context)
+                    Toast.makeText(context, "모니터링 중지 (OFF)", Toast.LENGTH_SHORT).show()
                 }
+            }
+        )
 
-                AnimatedVisibility(visible = isChecklistExpanded) {
-                    Column(modifier = Modifier.padding(top = 14.dp)) {
-                        Divider(color = SurfaceVariantDark, thickness = 1.dp)
-                        Spacer(modifier = Modifier.height(10.dp))
+        // Checklist Card (체크리스트) - 모든 항목 통과 시 숨김 처리
+        if (!allPassed) {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = SurfaceDark),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, AccentYellow, RoundedCornerShape(16.dp))
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable { isChecklistExpanded = !isChecklistExpanded }
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.FactCheck,
+                                contentDescription = null,
+                                tint = AccentYellow,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text(
+                                    text = "앱 수행 필수 체크리스트",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 16.sp,
+                                    color = TextPrimary
+                                )
+                                Text(
+                                    text = "조치가 필요한 항목이 있습니다 ($passedCount/$totalCount 완료)",
+                                    fontSize = 12.sp,
+                                    color = AccentYellow
+                                )
+                            }
+                        }
 
-                        checklistItems.forEach { item ->
-                            ChecklistItemRow(item = item, onRefresh = {
-                                val updated = AppChecklistHelper.getChecklist(context)
-                                checklistItems = updated
-                                if (updated.all { it.isPassed }) {
-                                    isChecklistExpanded = false
-                                }
-                            })
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(
+                                onClick = {
+                                    refreshChecklist()
+                                    Toast.makeText(context, "체크리스트 상태가 갱신되었습니다.", Toast.LENGTH_SHORT).show()
+                                },
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Refresh,
+                                    contentDescription = "체크리스트 새로고침",
+                                    tint = PrimaryNeon,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+
+                            IconButton(
+                                onClick = { isChecklistExpanded = !isChecklistExpanded },
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (isChecklistExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                    contentDescription = null,
+                                    tint = TextSecondary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    AnimatedVisibility(visible = isChecklistExpanded) {
+                        Column(modifier = Modifier.padding(top = 14.dp)) {
+                            Divider(color = SurfaceVariantDark, thickness = 1.dp)
                             Spacer(modifier = Modifier.height(10.dp))
+
+                            checklistItems.forEach { item ->
+                                ChecklistItemRow(item = item, onRefresh = {
+                                    val updated = AppChecklistHelper.getChecklist(context)
+                                    checklistItems = updated
+                                    if (updated.all { it.isPassed }) {
+                                        isChecklistExpanded = false
+                                    }
+                                })
+                                Spacer(modifier = Modifier.height(10.dp))
+                            }
                         }
                     }
                 }
@@ -534,6 +521,81 @@ fun DashboardScreen(onNavigateToLogs: () -> Unit = {}) {
                 Spacer(modifier = Modifier.width(8.dp))
             }
             Text("텔레그램 연동 테스트 메시지 발송", fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+@Composable
+fun MonitoringToggleCard(
+    enabled: Boolean,
+    onToggle: (Boolean) -> Unit
+) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = SurfaceDark),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, if (enabled) AccentGreen else CardBorder, RoundedCornerShape(16.dp))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 24.dp, horizontal = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = if (enabled) "모니터링 작동 중" else "모니터링 중지됨",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                color = if (enabled) AccentGreen else TextSecondary
+            )
+            Text(
+                text = if (enabled) "24시간 상시 음악 식별이 실행되고 있습니다." else "토글을 켜면 모니터링이 시작됩니다.",
+                fontSize = 12.sp,
+                color = TextMuted,
+                modifier = Modifier.padding(top = 4.dp)
+            )
+            Spacer(modifier = Modifier.height(20.dp))
+            BigToggleSwitch(checked = enabled, onCheckedChange = onToggle)
+        }
+    }
+}
+
+@Composable
+fun BigToggleSwitch(
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    val trackWidth = 84.dp
+    val trackHeight = 44.dp
+    val thumbSize = 36.dp
+    val trackPadding = 4.dp
+    val maxOffset = trackWidth - thumbSize - trackPadding * 2
+    val thumbOffset by animateDpAsState(targetValue = if (checked) maxOffset else 0.dp, label = "toggleThumb")
+
+    Box(
+        modifier = Modifier
+            .width(trackWidth)
+            .height(trackHeight)
+            .clip(RoundedCornerShape(trackHeight / 2))
+            .background(if (checked) AccentGreen else SurfaceVariantDark)
+            .border(1.dp, if (checked) AccentGreen else CardBorder, RoundedCornerShape(trackHeight / 2))
+            .clickable { onCheckedChange(!checked) }
+            .padding(trackPadding)
+    ) {
+        Box(
+            modifier = Modifier
+                .offset(x = thumbOffset)
+                .size(thumbSize)
+                .clip(CircleShape)
+                .background(Color.White),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = if (checked) Icons.Default.CheckCircle else Icons.Default.PowerSettingsNew,
+                contentDescription = null,
+                tint = if (checked) AccentGreen else AccentRed,
+                modifier = Modifier.size(20.dp)
+            )
         }
     }
 }
