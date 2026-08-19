@@ -565,7 +565,7 @@ fun SettingsScreen() {
                 val dateStr = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.KOREA).format(java.util.Date(pInfo.lastUpdateTime))
                 "$verName (Build $buildCode) • $dateStr"
             } catch (e: Exception) {
-                "v1.2.6 (Build 48) • 2026-08-16"
+                "v1.2.7 (Build 49) • 2026-08-19"
             }
         }
 

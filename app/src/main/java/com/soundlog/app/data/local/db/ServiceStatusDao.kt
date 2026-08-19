@@ -36,17 +36,18 @@ interface ExecutionLogDao {
     @Query("SELECT * FROM execution_logs WHERE step NOT IN ('SUCCESS', 'NO_MATCH', 'FAILURE', 'DUPLICATE_SKIP') ORDER BY timestamp DESC LIMIT :limit")
     fun getSystemLogsFlow(limit: Int = 10000): Flow<List<ExecutionLogEntity>>
 
-    // 오늘 00시 이후 음악 식별 성공 카운트 (SUCCESS)
-    @Query("SELECT COUNT(*) FROM execution_logs WHERE step = 'SUCCESS' AND timestamp >= :startOfDay")
-    fun getTodaySuccessCountFlow(startOfDay: Long): Flow<Int>
+    // 오늘(단말 로컬 날짜) 음악 식별 성공 카운트 (SUCCESS)
+    // 날짜 경계 판정을 SQLite가 매 쿼리마다 수행하므로 앱이 자정을 넘겨 계속 떠 있어도 누적되지 않는다.
+    @Query("SELECT COUNT(*) FROM execution_logs WHERE step = 'SUCCESS' AND date(timestamp / 1000, 'unixepoch', 'localtime') = date('now', 'localtime')")
+    fun getTodaySuccessCountFlow(): Flow<Int>
 
-    // 오늘 00시 이후 음악 미인식 카운트 (NO_MATCH)
-    @Query("SELECT COUNT(*) FROM execution_logs WHERE step = 'NO_MATCH' AND timestamp >= :startOfDay")
-    fun getTodayNoMatchCountFlow(startOfDay: Long): Flow<Int>
+    // 오늘(단말 로컬 날짜) 음악 미인식 카운트 (NO_MATCH)
+    @Query("SELECT COUNT(*) FROM execution_logs WHERE step = 'NO_MATCH' AND date(timestamp / 1000, 'unixepoch', 'localtime') = date('now', 'localtime')")
+    fun getTodayNoMatchCountFlow(): Flow<Int>
 
-    // 오늘 00시 이후 동작 실패 카운트 (FAILURE)
-    @Query("SELECT COUNT(*) FROM execution_logs WHERE step = 'FAILURE' AND timestamp >= :startOfDay")
-    fun getTodayFailureCountFlow(startOfDay: Long): Flow<Int>
+    // 오늘(단말 로컬 날짜) 동작 실패 카운트 (FAILURE)
+    @Query("SELECT COUNT(*) FROM execution_logs WHERE step = 'FAILURE' AND date(timestamp / 1000, 'unixepoch', 'localtime') = date('now', 'localtime')")
+    fun getTodayFailureCountFlow(): Flow<Int>
 
 
     @Query("DELETE FROM execution_logs WHERE id NOT IN (SELECT id FROM execution_logs ORDER BY timestamp DESC LIMIT :maxCount)")

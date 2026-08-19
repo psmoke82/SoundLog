@@ -104,21 +104,27 @@ fun DashboardScreen(onNavigateToLogs: () -> Unit = {}) {
     val statusState by app.database.serviceStatusDao().getStatusFlow()
         .collectAsState(initial = null)
 
-    val todayStart = remember {
-        java.util.Calendar.getInstance().apply {
-            set(java.util.Calendar.HOUR_OF_DAY, 0)
-            set(java.util.Calendar.MINUTE, 0)
-            set(java.util.Calendar.SECOND, 0)
-            set(java.util.Calendar.MILLISECOND, 0)
-        }.timeInMillis
+    // 오늘 날짜 집계 쿼리는 SQLite가 로컬 날짜를 직접 판정하지만, Room의 Flow는 테이블이
+    // 변경될 때만 재방출된다. 자정을 넘긴 직후 새 로그가 들어오기 전까지 어제 값이 남는 것을
+    // 막기 위해, 로컬 날짜가 바뀌면 dayKey를 갱신해 Flow를 다시 구독한다.
+    var dayKey by remember { mutableStateOf(java.time.LocalDate.now()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            kotlinx.coroutines.delay(60_000L)
+            val now = java.time.LocalDate.now()
+            if (now != dayKey) dayKey = now
+        }
     }
 
-    val todaySuccessCount by app.database.executionLogDao().getTodaySuccessCountFlow(todayStart)
-        .collectAsState(initial = 0)
-    val todayNoMatchCount by app.database.executionLogDao().getTodayNoMatchCountFlow(todayStart)
-        .collectAsState(initial = 0)
-    val todayFailureCount by app.database.executionLogDao().getTodayFailureCountFlow(todayStart)
-        .collectAsState(initial = 0)
+    val todaySuccessCount by remember(dayKey) {
+        app.database.executionLogDao().getTodaySuccessCountFlow()
+    }.collectAsState(initial = 0)
+    val todayNoMatchCount by remember(dayKey) {
+        app.database.executionLogDao().getTodayNoMatchCountFlow()
+    }.collectAsState(initial = 0)
+    val todayFailureCount by remember(dayKey) {
+        app.database.executionLogDao().getTodayFailureCountFlow()
+    }.collectAsState(initial = 0)
 
     var isTestingRecognition by remember { mutableStateOf(false) }
     var isTestingTelegram by remember { mutableStateOf(false) }

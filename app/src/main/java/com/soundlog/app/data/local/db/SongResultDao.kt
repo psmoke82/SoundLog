@@ -28,9 +28,6 @@ interface SongResultDao {
     @Query("SELECT * FROM song_results WHERE songKey = :songKey AND detectedAt >= :sinceTimestamp LIMIT 1")
     suspend fun findRecentDuplicate(songKey: String, sinceTimestamp: Long): SongResultEntity?
 
-    @Query("SELECT COUNT(*) FROM song_results WHERE detectedAt >= :startOfDay")
-    suspend fun getTodayCount(startOfDay: Long): Int
-
     @Query("DELETE FROM song_results WHERE id NOT IN (SELECT id FROM song_results ORDER BY detectedAt DESC LIMIT :maxCount)")
     suspend fun pruneOldSongs(maxCount: Int)
 
