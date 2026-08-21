@@ -264,7 +264,7 @@ fun SettingsScreen() {
                 }
 
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = SurfaceVariantDark),
+                    colors = CardDefaults.cardColors(containerColor = DarkBackground),
                     modifier = Modifier
                         .fillMaxWidth()
                         .border(1.dp, CardBorder, RoundedCornerShape(12.dp))
@@ -273,7 +273,7 @@ fun SettingsScreen() {
                         Text(
                             text = samplePreview.ifBlank { "(메시지 포맷이 비어있습니다)" },
                             fontSize = 13.sp,
-                            color = TextPrimary,
+                            color = TextSecondary,
                             lineHeight = 18.sp
                         )
                     }
