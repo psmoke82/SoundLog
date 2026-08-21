@@ -4,7 +4,14 @@ import android.content.Intent
 import android.provider.Settings
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.StartOffset
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -64,8 +71,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.soundlog.app.SoundLogApp
@@ -86,6 +97,7 @@ import com.soundlog.app.ui.theme.SurfaceVariantDark
 import com.soundlog.app.ui.theme.TextMuted
 import com.soundlog.app.ui.theme.TextPrimary
 import com.soundlog.app.ui.theme.TextSecondary
+import com.soundlog.app.ui.theme.WordmarkFontFamily
 import com.soundlog.app.util.AppChecklistHelper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -172,18 +184,27 @@ fun DashboardScreen(onNavigateToLogs: () -> Unit = {}) {
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         // Header
-        Column {
-            Text(
-                text = "SoundLog Dashboard",
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Bold,
-                color = TextPrimary
-            )
-            Text(
-                text = "24시간 상시 음악 식별 & 텔레그램 공유",
-                fontSize = 12.sp,
-                color = TextSecondary
-            )
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 20.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally)
+            ) {
+                PulseBarLogo()
+                Text(
+                    text = buildAnnotatedString {
+                        withStyle(SpanStyle(color = TextPrimary)) { append("Sound") }
+                        withStyle(SpanStyle(color = AccentYellow)) { append("Log") }
+                    },
+                    fontFamily = WordmarkFontFamily,
+                    fontSize = 32.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
         }
 
         // Monitoring Power Toggle Card (중앙 대형 토글)
@@ -698,6 +719,50 @@ fun StatCard(
             }
             Spacer(modifier = Modifier.height(4.dp))
             Text(text = value, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = color)
+        }
+    }
+}
+
+@Composable
+private fun PulseBarLogo(modifier: Modifier = Modifier) {
+    val transition = rememberInfiniteTransition(label = "pulseBarLogo")
+    // 6개 바를 서로 다른 시작 지점에서 출발시켜 비대칭 VU 미터처럼 보이게 한다.
+    val startOffsetsMs = listOf(0, 300, 700, 150, 550, 850)
+    val centerIndex = (startOffsetsMs.size - 1) / 2f
+    val barFractions = startOffsetsMs.mapIndexed { index, offsetMs ->
+        // 중앙 바일수록 진폭이 크고 가장자리로 갈수록 진폭이 줄어들어
+        // 움직임 전체가 마름모(다이아몬드) 윤곽을 그리도록 한다.
+        val distanceFromCenter = kotlin.math.abs(index - centerIndex)
+        val envelope = 1f - (distanceFromCenter / centerIndex) * 0.55f
+        transition.animateFloat(
+            initialValue = 0.22f * envelope,
+            targetValue = 1f * envelope,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 550, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse,
+                initialStartOffset = StartOffset(offsetMs)
+            ),
+            label = "pulseBar$index"
+        )
+    }
+
+    Row(
+        modifier = modifier.height(28.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        barFractions.forEachIndexed { index, animatedFraction ->
+            val barColor = if (index % 2 == 1) PrimaryNeon else AccentYellow
+            Box(
+                modifier = Modifier
+                    .width(4.dp)
+                    .height(28.dp)
+                    // 콘셉트 이미지처럼 상하 중앙을 기준으로 늘었다 줄었다 하도록
+                    // 바닥 정렬 대신 세로 스케일(중심 기준)을 사용한다.
+                    .graphicsLayer { scaleY = animatedFraction.value }
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(barColor)
+            )
         }
     }
 }

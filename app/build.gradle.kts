@@ -1,8 +1,18 @@
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("com.google.devtools.ksp")
 }
+
+// 빌드가 수행된 날짜(KST 기준). 릴리즈 APK를 빌드한 날짜가 그대로 BuildConfig.BUILD_DATE 로 박힌다.
+val buildDate: String = SimpleDateFormat("yyyy-MM-dd", Locale.KOREA).apply {
+    timeZone = TimeZone.getTimeZone("Asia/Seoul")
+}.format(Date())
 
 android {
     namespace = "com.soundlog.app"
@@ -14,6 +24,8 @@ android {
         targetSdk = 34
         versionCode = 49
         versionName = "1.2.7"
+
+        buildConfigField("String", "BUILD_DATE", "\"$buildDate\"")
 
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -50,6 +62,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     composeOptions {
         kotlinCompilerExtensionVersion = "1.5.8"
