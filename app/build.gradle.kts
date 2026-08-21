@@ -22,8 +22,8 @@ android {
         applicationId = "com.soundlog.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 49
-        versionName = "1.2.7"
+        versionCode = 50
+        versionName = "1.2.8"
 
         buildConfigField("String", "BUILD_DATE", "\"$buildDate\"")
 
