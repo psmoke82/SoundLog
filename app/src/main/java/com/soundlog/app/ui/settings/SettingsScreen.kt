@@ -49,6 +49,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.soundlog.app.BuildConfig
 import com.soundlog.app.SoundLogApp
 import com.soundlog.app.data.local.pref.EncryptedSettingsRepository
 import com.soundlog.app.ui.theme.CardBorder
@@ -554,19 +555,9 @@ fun SettingsScreen() {
         Spacer(modifier = Modifier.height(8.dp))
 
         val appVersionName = remember {
-            try {
-                val pInfo = context.packageManager.getPackageInfo(context.packageName, 0)
-                val verName = if (pInfo.versionName.startsWith("v")) pInfo.versionName else "v${pInfo.versionName}"
-                val buildCode = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
-                    pInfo.longVersionCode
-                } else {
-                    @Suppress("DEPRECATION") pInfo.versionCode.toLong()
-                }
-                val dateStr = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.KOREA).format(java.util.Date(pInfo.lastUpdateTime))
-                "$verName (Build $buildCode) • $dateStr"
-            } catch (e: Exception) {
-                "v1.2.7 (Build 49) • 2026-08-19"
-            }
+            val testSuffix = if (BuildConfig.DEBUG) " (*Test ver.)" else ""
+            "v${BuildConfig.VERSION_NAME} (Build ${BuildConfig.VERSION_CODE}) " +
+                "• ${BuildConfig.BUILD_DATE}$testSuffix"
         }
 
         androidx.compose.foundation.layout.Box(
